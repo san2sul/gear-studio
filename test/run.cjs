@@ -26,7 +26,7 @@ for (const [cat, S] of Object.entries(C.STD)) {
 { const D = C.linkageDefault(); D.type = 'jansen'; const M = C.buildModel(D), P = C.proxyParts(M.bom);
   ok(P.some(p => /motor_/.test(p.file)) && P.some(p => /screw_/.test(p.file)), '얀센: 모터·볼트 모형이 없음'); P.forEach(p => ok(openEdges(p.tris) === 0, `모형 ${p.file} 메시가 열려 있음`)); }
 // 4. 연결점(포트): 모든 동작 기구에 입력이 있고, 출력 값이 이어짐
-const OUT = { slider: 'lin', yoke: 'lin', fourbar: 'rot', jansen: null, geneva: 'rot', ratchet: 'rot', screw: 'lin', diff: 'rot' };
+const OUT = { slider: 'lin', yoke: 'lin', fourbar: 'rot', jansen: null, geneva: 'rot', ratchet: 'rot', screw: 'lin', diff: 'rot', vib: null, intgear: 'rot', winch: 'lin', gripper: null, ujoint: 'rot', conveyor: 'rot' };
 for (const ty of C.LK_TYPES) for (const mo of ['none', 'auto']) {
   const D = C.linkageDefault(); D.type = ty; D.drive.motor = mo; const M = C.buildModel(D), P = C.modelPorts(D, M);
   ok(P.list.some(q => q.role === 'in') && Math.abs(P.rate) > 0, `${ty}/${mo}: 입력 포트 없음`);

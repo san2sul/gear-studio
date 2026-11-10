@@ -19,9 +19,9 @@ const MECH = {
   ratchet: { t: '래칫 기구', s: '한 방향 운동 허용·역회전 방지', go: 'link:ratchet', mk: () => lkD('ratchet') },
   jansen: { t: '얀센 링크', s: '회전 → 보행 동작', go: 'link:jansen', mk: () => lkD('jansen') },
   diff: { t: '차동 기어', s: '하나의 입력 → 서로 다른 두 출력', go: 'link:diff', mk: () => lkD('diff') },
-  vib: { t: '편심추 진동', s: '회전 → 빠른 진동', soon: true }, intgear: { t: '간헐 기어', s: '이 빠진 기어로 돌다 멈춤', soon: true },
-  winch: { t: '윈치·도르래', s: '줄을 감아 들어 올림', soon: true }, gripper: { t: '그리퍼', s: '집기·놓기', soon: true },
-  ujoint: { t: '유니버설 조인트', s: '꺾인 축으로 회전 전달', soon: true }, conveyor: { t: '벨트 컨베이어', s: '연속 이송', soon: true }
+  vib: { t: '편심추 진동', s: '회전 → 빠른 진동', go: 'link:vib', mk: () => lkD('vib') }, intgear: { t: '간헐 기어', s: '이 빠진 기어로 돌다 멈춤', go: 'link:intgear', mk: () => lkD('intgear') },
+  winch: { t: '윈치·도르래', s: '줄을 감아 들어 올림', go: 'link:winch', mk: () => lkD('winch') }, gripper: { t: '그리퍼', s: '집기·놓기', go: 'link:gripper', mk: () => lkD('gripper') },
+  ujoint: { t: '유니버설 조인트', s: '꺾인 축으로 회전 전달', go: 'link:ujoint', mk: () => lkD('ujoint') }, conveyor: { t: '벨트 컨베이어', s: '연속 이송', go: 'link:conveyor', mk: () => lkD('conveyor') }
 };
 const FIND_MOTION = [['① 연속 회전', '선풍기, 바퀴, 믹서, 컨베이어 롤러', ['spur', 'planet', 'belt', 'conveyor']], ['② 직선 운동', '자동문, 슬라이딩 테이블, 프린터 헤드, 승강 장치', ['rack', 'screw', 'conveyor']],
   ['③ 직선 왕복', '피스톤, 왕복 펌프, 왕복 톱', ['slider', 'yoke', 'cam']], ['④ 회전 왕복 (요동)', '와이퍼, 흔들 의자, 로봇 관절', ['fourbar', 'cam']],

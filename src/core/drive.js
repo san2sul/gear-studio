@@ -608,7 +608,7 @@ function linkLoadT(D, M) {
   const dr = D.drive || {}, F = +dr.F || 0, T = (+dr.T || 0) * 10;
   if (D.type === 'screw') { const S = D.screw, L = S.p * S.starts, eta = screwEta(S); return F * L / (2 * PI * eta); }
   if (D.type === 'diff') return 2 * T * D.diff.zm / D.diff.zc;
-  if (D.type === 'ratchet') return T;
+  if (D.type === 'ratchet' || D.type === 'vib') return T;
   if (D.type === 'jansen') return F * Math.max(...M.vP);
   const vmax = Math.max(...M.v.map(Math.abs));
   return LK_FORCE[D.type] ? F * vmax : T * vmax * D2R;

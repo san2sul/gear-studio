@@ -1,6 +1,6 @@
 {
   "name": "gear-studio",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "private": true,
   "description": "기어 설계실: 기어·기구·규격 부품을 설계하고 3D로 움직여 보고 3D 프린팅용 STL로 내보내는 웹앱",
   "type": "module",

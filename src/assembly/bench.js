@@ -213,7 +213,7 @@ function asmBase(M, model, addBom, steps) {
   [...posts.values()].forEach(p => addBom(`출력 기둥 ${fmt(p.h, 1)} mm (10×10)`, p.n, '출력 부품, 양끝 M3 탭'));
   const W = x1 - x0, H = y1 - y0;
   model.checks.push({ st: W > 220 || H > 220 ? 'warn' : 'ok', txt: `공통 바탕판 <em>${fmt(W, 0)}×${fmt(H, 0)} mm</em>, 기둥 ${np}개${W > 220 || H > 220 ? ' · 출력판(220 mm)보다 커서 나눠 출력하거나 합판·알루미늄 판을 쓰세요' : ''}` });
-  if (hung.length) model.checks.push({ st: 'warn', txt: `${hung.join(', ')}번 기구는 뒤집혀 매달려 있어 바탕판 기둥으로 받치지 못합니다. 위쪽 틀에 매다세요.` });
+  if (hung.length) model.checks.push({ st: 'warn', txt: `${hung.join(', ')}번 기구는 기울어지거나 뒤집혀 있어 바탕판 기둥으로 받치지 못합니다. 따로 받침(브래킷)이나 위쪽 틀에 고정하세요.` });
   steps.unshift(`공통 바탕판에 기둥을 M3 볼트로 세우고, 각 기구 바닥판 네 모서리를 기둥 위에 M3 볼트로 고정합니다.`);
 }
 // 직선 출력 → 랙·피니언 → 뒤 기구 입력. 틀 Fr: x = 움직임 방향 u, y = 이가 향하는 쪽 n, z = 피니언 축 w

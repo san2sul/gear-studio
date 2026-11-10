@@ -354,6 +354,7 @@
         <div class="seg" id="lkTypeSeg" style="grid-template-columns:1fr 1fr">
           <button data-v="slider">크랭크·슬라이더</button><button data-v="yoke">스카치 요크</button><button data-v="fourbar">4절 링크</button><button data-v="jansen">얀센 링크</button>
           <button data-v="geneva">제네바 기구</button><button data-v="ratchet">래칫 기구</button><button data-v="screw">리드스크루</button><button data-v="diff">차동 기어</button>
+          <button data-v="intgear">간헐 기어</button><button data-v="vib">편심추 진동</button><button data-v="winch">윈치·도르래</button><button data-v="gripper">그리퍼</button><button data-v="ujoint">유니버설 조인트</button><button data-v="conveyor">벨트 컨베이어</button>
         </div>
         <p class="hint" id="lkHint"></p>
       </fieldset>
@@ -388,6 +389,12 @@
         <div class="grid3" id="lkJansen" hidden>
           <label class="f">크랭크 m <span class="u">mm, 전체 비율</span><input type="number" id="lkJm" min="5" step="1"></label>
         </div>
+        <div class="grid3" id="lkVib" hidden><label class="f">추 반지름 <span class="u">mm</span><input type="number" id="lkVR" min="8" step="1"></label><label class="f">M4 너트 <span class="u">개</span><input type="number" id="lkVn" min="0" step="1"></label></div>
+        <div class="grid3" id="lkInt" hidden><label class="f">모듈 <span class="u">mm</span><input type="number" id="lkIm" min="0.5" step="0.25"></label><label class="f">구동 잇수 <span class="u">전체</span><input type="number" id="lkIz1" min="8" step="1"></label><label class="f">남길 이 <span class="u">개</span><input type="number" id="lkIk" min="1" step="1"></label><label class="f">종동 잇수 <span class="u">개</span><input type="number" id="lkIz2" min="8" step="1"></label></div>
+        <div class="grid3" id="lkWinch" hidden><label class="f">드럼 반지름 <span class="u">mm</span><input type="number" id="lkWr" min="3" step="1"></label><label class="f">도르래 높이 <span class="u">mm</span><input type="number" id="lkWH" min="40" step="1"></label><label class="f">도르래 거리 <span class="u">mm</span><input type="number" id="lkWL" min="25" step="1"></label><label class="f">들어 올릴 높이 <span class="u">mm</span><input type="number" id="lkWt" min="5" step="1"></label></div>
+        <div class="grid3" id="lkGrip" hidden><label class="f">크랭크 b <span class="u">mm</span><input type="number" id="lkGb" min="3" step="1"></label><label class="f">커플러 c <span class="u">mm</span><input type="number" id="lkGc" min="10" step="1"></label><label class="f">레버 d <span class="u">mm</span><input type="number" id="lkGd" min="6" step="1"></label><label class="f">피벗 거리 a <span class="u">mm</span><input type="number" id="lkGpa" min="20" step="1"></label><label class="f">기어 모듈 <span class="u">mm</span><input type="number" id="lkGm" min="0.5" step="0.25"></label><label class="f">기어 잇수 <span class="u">개</span><input type="number" id="lkGz" min="8" step="1"></label><label class="f">손가락 길이 <span class="u">mm</span><input type="number" id="lkGL" min="15" step="1"></label></div>
+        <div class="grid3" id="lkUj" hidden><label class="f">꺾임 각 <span class="u">°</span><input type="number" id="lkUb" min="0" step="1"></label><label class="f">관절 높이 <span class="u">mm</span><input type="number" id="lkUH" min="15" step="1"></label><label class="f">출력축 길이 <span class="u">mm</span><input type="number" id="lkUL" min="15" step="1"></label></div>
+        <div class="grid3" id="lkConv" hidden><label class="f">드럼 반지름 <span class="u">mm</span><input type="number" id="lkCR" min="6" step="1"></label><label class="f">축 사이 <span class="u">mm</span><input type="number" id="lkCL" min="30" step="1"></label><label class="f">높이 <span class="u">mm</span><input type="number" id="lkCh" min="8" step="1"></label><label class="f">밀대 <span class="u">개</span><input type="number" id="lkCn" min="2" step="1"></label></div>
         <div class="grid3" id="lkGeneva" hidden>
           <label class="f">홈 수 n <span class="u">3~12</span><input type="number" id="lkGn" min="3" max="12" step="1"></label>
           <label class="f">핀 반지름 a <span class="u">mm</span><input type="number" id="lkGa" min="10" step="1"></label>

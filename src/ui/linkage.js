@@ -7,14 +7,20 @@ const LK_HINT = { slider: '크랭크가 돌면 연결 막대가 슬라이더를 
   geneva: '구동판이 한 바퀴 도는 동안 핀이 바퀴 홈에 들어가 바퀴를 360/n° 돌리고, 나머지는 잠금 원판이 바퀴를 붙잡아 멈춥니다 (필름 이송·분할 테이블).',
   ratchet: '톱니바퀴가 한 방향(반시계)으로만 돌고, 거꾸로 돌리면 멈춤쇠가 톱니에 걸려 막습니다. 멈춤쇠 꼬리는 고무줄로 당겨 둡니다.',
   screw: '사다리꼴 나사를 돌리면 너트가 안내 기둥을 따라 곧게 오르내립니다. 리드(한 바퀴 이동량)가 작을수록 정밀하고 힘이 큽니다.',
+  intgear: '이를 일부만 남긴 구동 기어가 한 바퀴 도는 동안, 남은 이가 지나갈 때만 종동 기어가 돌고 나머지는 멈춥니다 (간단한 간헐 이송).',
+  vib: '반원 모양 추가 돌면 무게 중심이 원을 그려 바닥판 전체를 흔듭니다 (진동 모터·진동 피더·체). 빠를수록 세게 흔듭니다.',
+  winch: '드럼이 줄을 감으면 도르래를 지나 짐(추)이 올라갑니다. 드럼 반지름이 작을수록 힘이 덜 들고 느리게 올라갑니다.',
+  gripper: '4절 링크가 손가락 하나를 흔들고, 맞물린 기어가 다른 손가락을 반대로 돌려 두 손가락이 함께 집었다 놓습니다.',
+  ujoint: '십자(스파이더)로 이은 두 요크가 꺾인 축 사이에 회전을 전합니다. 꺾일수록 출력 속도가 한 바퀴에 두 번 출렁입니다.',
+  conveyor: '세로로 선 두 드럼에 벨트를 걸어 수평으로 돌립니다. 벨트의 밀대가 물건을 한 방향으로 계속 밀어 보냅니다.',
   diff: '모터가 캐리어를 돌리면 두 출력(아래 A, 위 B)이 함께 돌되, 한쪽이 느려지면 다른 쪽이 그만큼 빨라집니다 (자동차 바퀴 코너링). 평기어로 층을 쌓아 만듭니다.' };
-const LK_FIELDS = { lkYr: ['yoke', 'r'], lkJm: ['jansen', 'm'], lkGn: ['geneva', 'n'], lkGa: ['geneva', 'a'], lkRz: ['ratchet', 'z'], lkRR: ['ratchet', 'R'], lkRh: ['ratchet', 'h'], lkRL: ['ratchet', 'L'], lkSdia: ['screw', 'd'], lkSp: ['screw', 'p'], lkSs: ['screw', 'starts'], lkSL: ['screw', 'len'], lkDm: ['diff', 'm'], lkDzs: ['diff', 'zs'], lkDzp: ['diff', 'zp'], lkDzm: ['diff', 'zm'], lkDzc: ['diff', 'zc'], lkDdv: ['diff', 'dv'], lkR: ['slider', 'r'], lkL: ['slider', 'L'], lkE: ['slider', 'e'], lkA: ['fourbar', 'a'], lkB: ['fourbar', 'b'], lkC: ['fourbar', 'c'], lkD: ['fourbar', 'd'], lkP: ['fourbar', 'p'], lkQ: ['fourbar', 'q'], lkW: [null, 'w'], lkT: [null, 't'], lkPin: [null, 'pinD'], lkSd: [null, 'sd'], lkRpm: [null, 'rpm'], lkGS: ['goal', 'stroke'], lkGW: ['goal', 'swing'], lkGQ: ['goal', 'Q'] };
+const LK_FIELDS = { lkVR: ['vib', 'R'], lkVn: ['vib', 'n'], lkIm: ['intgear', 'm'], lkIz1: ['intgear', 'z1'], lkIk: ['intgear', 'k'], lkIz2: ['intgear', 'z2'], lkWr: ['winch', 'r'], lkWH: ['winch', 'H'], lkWL: ['winch', 'L'], lkWt: ['winch', 'travel'], lkGb: ['gripper', 'b'], lkGc: ['gripper', 'c'], lkGd: ['gripper', 'd'], lkGpa: ['gripper', 'a'], lkGm: ['gripper', 'm'], lkGz: ['gripper', 'z'], lkGL: ['gripper', 'Lf'], lkUb: ['ujoint', 'beta'], lkUH: ['ujoint', 'H'], lkUL: ['ujoint', 'L'], lkCR: ['conveyor', 'R'], lkCL: ['conveyor', 'L'], lkCh: ['conveyor', 'h'], lkCn: ['conveyor', 'n'], lkYr: ['yoke', 'r'], lkJm: ['jansen', 'm'], lkGn: ['geneva', 'n'], lkGa: ['geneva', 'a'], lkRz: ['ratchet', 'z'], lkRR: ['ratchet', 'R'], lkRh: ['ratchet', 'h'], lkRL: ['ratchet', 'L'], lkSdia: ['screw', 'd'], lkSp: ['screw', 'p'], lkSs: ['screw', 'starts'], lkSL: ['screw', 'len'], lkDm: ['diff', 'm'], lkDzs: ['diff', 'zs'], lkDzp: ['diff', 'zp'], lkDzm: ['diff', 'zm'], lkDzc: ['diff', 'zc'], lkDdv: ['diff', 'dv'], lkR: ['slider', 'r'], lkL: ['slider', 'L'], lkE: ['slider', 'e'], lkA: ['fourbar', 'a'], lkB: ['fourbar', 'b'], lkC: ['fourbar', 'c'], lkD: ['fourbar', 'd'], lkP: ['fourbar', 'p'], lkQ: ['fourbar', 'q'], lkW: [null, 'w'], lkT: [null, 't'], lkPin: [null, 'pinD'], lkSd: [null, 'sd'], lkRpm: [null, 'rpm'], lkGS: ['goal', 'stroke'], lkGW: ['goal', 'swing'], lkGQ: ['goal', 'Q'] };
 function renderLinkForm() {
   const D = kD;
   $('lkTypeSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === D.type));
   $('lkHint').textContent = LK_HINT[D.type];
   linkFix(D);
-  [['lkSlider', 'slider'], ['lkYoke', 'yoke'], ['lkFour', 'fourbar'], ['lkJansen', 'jansen'], ['lkGeneva', 'geneva'], ['lkRatchet', 'ratchet'], ['lkScrew', 'screw'], ['lkDiff', 'diff']].forEach(([id, ty]) => $(id).hidden = D.type !== ty);
+  [['lkSlider', 'slider'], ['lkYoke', 'yoke'], ['lkFour', 'fourbar'], ['lkJansen', 'jansen'], ['lkGeneva', 'geneva'], ['lkRatchet', 'ratchet'], ['lkScrew', 'screw'], ['lkDiff', 'diff'], ['lkVib', 'vib'], ['lkInt', 'intgear'], ['lkWinch', 'winch'], ['lkGrip', 'gripper'], ['lkUj', 'ujoint'], ['lkConv', 'conveyor']].forEach(([id, ty]) => $(id).hidden = D.type !== ty);
   $('lkGoalFs').hidden = !['slider', 'yoke', 'fourbar'].includes(D.type);
   $('lkGSW').hidden = D.type === 'fourbar'; $('lkGWW').hidden = D.type !== 'fourbar'; $('lkGQ').closest('label').hidden = D.type === 'yoke';
   for (const [id, [g, k]] of Object.entries(LK_FIELDS)) $(id).value = g ? D[g][k] : D[k];
@@ -25,8 +31,8 @@ function renderLinkDrive() {
   const D = linkDriveFix(kD), dr = D.drive;
   $('lkMotor').value = dr.motor; $('lkF').value = dr.F; $('lkTq').value = dr.T; $('lkMount').value = dr.mount; $('lkRed').value = String(dr.red);
   const force = !!LK_FORCE[D.type]; $('lkFW').hidden = !force; $('lkTW').hidden = force;
-  $('lkFL').textContent = { slider: '슬라이더 부하 힘', yoke: '요크 부하 힘', jansen: '다리 끝 힘', screw: '너트 미는 힘' }[D.type] || '';
-  $('lkTL').textContent = { fourbar: '흔들이 부하 토크', geneva: '바퀴 부하 토크', ratchet: '바퀴 부하 토크', diff: '출력 하나의 부하 토크' }[D.type] || '';
+  $('lkFL').textContent = { slider: '슬라이더 부하 힘', yoke: '요크 부하 힘', jansen: '다리 끝 힘', screw: '너트 미는 힘', winch: '들어 올릴 짐 (무게)', gripper: '손가락 끝 잡는 힘', conveyor: '벨트로 미는 힘' }[D.type] || '';
+  $('lkTL').textContent = { fourbar: '흔들이 부하 토크', geneva: '바퀴 부하 토크', ratchet: '바퀴 부하 토크', diff: '출력 하나의 부하 토크', intgear: '종동 기어 부하 토크', vib: '마찰 토크', ujoint: '출력 부하 토크' }[D.type] || '';
   const sel = dr.motor === 'auto' || dr.motor === 'none' ? null : MOTORS[dr.motor];
   $('lkMount').disabled = !!sel && !canClamp(sel); $('lkSd').disabled = dr.motor !== 'none';
   if (dr.motor === 'none') { $('lkRec').innerHTML = ''; return; }
@@ -63,6 +69,12 @@ function renderLinkChart() {
     geneva: `실선: 휠 각도(°), 점선: 각속도. 입력 한 바퀴에 ${fmt(M.range, 1)}° 돌고 나머지는 멈춰 있습니다.`,
     ratchet: `실선: 래칫 휠 각도(°), 점선: 각속도. 레버 한 번 왕복에 ${fmt(M.range, 1)}° 전진하고 되돌아가지 않습니다.`,
     screw: `실선: 너트 위치(mm), 점선: 속도. 입력 한 바퀴에 ${fmt(M.range, 1)} mm 이동합니다.`,
+    intgear: `실선: 종동 기어 각도(°), 점선: 각속도. 입력 한 바퀴에 ${fmt(M.max - M.min, 1)}° 돌고 나머지는 멈춰 있습니다.`,
+    vib: `실선: 위아래로 흔드는 힘(N), 점선: 그 변화. 한 바퀴에 한 번 오르내리며, 최대 ${fmt(M.max, 3)} N입니다 (회전수 제곱에 비례).`,
+    winch: `실선: 짐 높이(mm), 점선: 속도. 드럼 한 바퀴에 ${fmt(M.max - M.min, 1)} mm 올라갑니다.`,
+    gripper: `실선: 두 손가락 사이(mm), 점선: 벌어지는 속도. ${fmt(M.min, 1)} mm까지 오므렸다 ${fmt(M.max, 1)} mm까지 벌립니다.`,
+    ujoint: `실선: 출력 각도(°), 점선: 출력 속도 비. 직선에서 조금씩 벗어나는 만큼 출력이 출렁입니다.`,
+    conveyor: `실선: 밀대 이동 거리(mm), 점선: 속도. 드럼 한 바퀴에 ${fmt(M.max - M.min, 1)} mm 보냅니다.`,
     diff: `실선: 출력 A 각도(°), 점선: 각속도. 입력 한 바퀴에 A가 ${fmt(M.range, 1)}° 돕니다. B는 3D 화면에서 확인하세요.`
   })[D.type] || '';
 }

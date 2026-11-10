@@ -91,6 +91,7 @@ function linkPose(D, th) {
     if (h < 0) return null;
     return { A, B: [A[0] + Math.sqrt(h), e], phi: Math.asin(dy / L) };
   }
+  if (typeof LK_X !== 'undefined' && LK_X[D.type]) return LK_X[D.type].pose(D, th);
   if (D.type === 'yoke') { const A = [D.yoke.r * c, D.yoke.r * s]; return { A, B: [A[0], 0], phi: 0, x: A[0] }; }
   if (D.type === 'jansen') return jansenPose(D.jansen.m / 15, th);
   if (D.type === 'geneva') { const G = genevaGeo(D), g = genevaPsi(G, th); return { A: [G.a * c, G.a * s], psi: g.psi, eng: g.eng }; }
@@ -117,7 +118,7 @@ function linkMotion(D, N = 360) {
     const th = 2 * PI * i / N, ps = linkPose(D, th);
     if (!ps) { out.ok = false; out.th.push(th); out.y.push(NaN); continue; }
     out.th.push(th);
-    out.y.push(ty === 'slider' ? ps.B[0] : ty === 'yoke' ? ps.x : ty === 'jansen' ? ps.F[1] : ty === 'ratchet' ? ps.gam / D2R : ty === 'screw' ? ps.dz : ty === 'diff' ? ps.tA / D2R : ps.psi / D2R);
+    out.y.push(LK_X[ty] ? LK_X[ty].y(ps) : ty === 'slider' ? ps.B[0] : ty === 'yoke' ? ps.x : ty === 'jansen' ? ps.F[1] : ty === 'ratchet' ? ps.gam / D2R : ty === 'screw' ? ps.dz : ty === 'diff' ? ps.tA / D2R : ps.psi / D2R);
     if (ty === 'fourbar') { out.mu.push(ps.mu / D2R); out.P.push(ps.P); }
     else { out.mu.push(ty === 'slider' ? 90 - Math.abs(ps.phi) / D2R : 90); if (ty === 'jansen') out.P.push(ps.F); }
   }
@@ -129,7 +130,7 @@ function linkMotion(D, N = 360) {
   out.max = ys[iMax]; out.min = ys[iMin]; out.range = out.max - out.min;
   const fwd = ((iMax - iMin) % N + N) % N, back = N - fwd;
   out.Q = Math.max(fwd, back) / Math.max(1, Math.min(fwd, back)); out.fwdDeg = fwd * 360 / N;
-  const dth = 2 * PI / N, mono = ty === 'geneva' || ty === 'screw' || ty === 'diff';
+  const dth = 2 * PI / N, mono = ty === 'geneva' || ty === 'screw' || ty === 'diff' || !!(LK_X[ty] && LK_X[ty].mono);
   const yv = i => mono ? out.y[i] : ys[((i % N) + N) % N];
   out.v = ys.map((v, i) => mono ? (out.y[Math.min(N, i + 1)] - out.y[Math.max(0, i - 1)]) / ((Math.min(N, i + 1) - Math.max(0, i - 1)) * dth) : (yv(i + 1) - yv(i - 1)) / (2 * dth));
   out.a = ys.map((v, i) => mono ? 0 : (yv(i + 1) - 2 * v + yv(i - 1)) / (dth * dth));

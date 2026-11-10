@@ -29,6 +29,7 @@ function exportZip() {
   const printable = [];   // 출력판에 올릴 부품 (출력 방향, 바닥 z=0)
   const seen = new Map();
   model.parts.forEach(p => {
+    if (p.noExport) return;
     const f = placeFlat(p.tris, p.print);
     const t = xfTris(f.tris, XF.T(0, 0, -f.b.lo[2]));
     if (!seen.has(p.tris)) { seen.set(p.tris, true); files.push({ name: `parts/${p.file}.stl`, data: stlBinary(t, p.name) }); }
