@@ -1,0 +1,514 @@
+
+<div class="app">
+  <header class="top">
+    <h1>기어 <span>설계실</span></h1>
+    <p>평기어 · 헬리컬·헤링본 · 베벨 · 유성 · 랙 · 웜 · 사이클로이드 · 캠 · 크랭크 기구 · 기어박스 자동 설계 · 모터·마운트·제어 · 자유 조립 · 맞물림 시뮬레이션 · 3D 프린팅용 STL</p>
+  </header>
+
+  <aside>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabBox" aria-selected="true">기어박스 자동 설계</button>
+      <button role="tab" id="tabPair" aria-selected="false">기어 직접 설계</button>
+      <button role="tab" id="tabTrain" aria-selected="false">자유 조립</button>
+      <button role="tab" id="tabCam" aria-selected="false">캠 설계</button>
+      <button role="tab" id="tabLink" aria-selected="false">동작 기구</button>
+      <button role="tab" id="tabFind" aria-selected="false">동작으로 찾기</button>
+      <button role="tab" id="tabStd" aria-selected="false">규격 부품</button>
+    </div>
+
+    <!-- 동작으로 찾기 -->
+    <section id="paneFind" style="display:none;flex-direction:column;gap:14px">
+      <p class="hint">만들고 싶은 동작을 고르면 맞는 기구가 열립니다. 카드 그림은 앱이 만든 실제 모양입니다. 흐린 카드는 준비 중입니다.</p>
+      <fieldset><legend>대표 기구</legend><div id="findGallery" class="fgal"></div></fieldset>
+      <fieldset><legend>기본 운동</legend><div id="findMotion" class="frows"></div></fieldset>
+      <fieldset><legend>기능별 동작</legend><div id="findFunc" class="frows"></div></fieldset>
+    </section>
+
+    <!-- 규격 부품 -->
+    <section id="paneStd" style="display:none;flex-direction:column;gap:14px">
+      <p class="hint">시중 규격 부품을 출력용 모형으로 만듭니다. 사기 전에 구멍·길이·자리를 맞춰 보는 용도이며, 치수는 대표값입니다(제조사마다 조금씩 다름).</p>
+      <fieldset>
+        <legend>부품</legend>
+        <label class="f">종류<select id="stdCat"></select></label>
+        <div class="grid2" id="stdFields"></div>
+        <label class="f">개수<input type="number" id="stdN" value="1" min="1" step="1"></label>
+        <p class="hint" id="stdNote"></p>
+        <div class="row"><button class="btn primary" id="stdAdd">목록에 담기</button><button class="btn" id="stdOne">이 부품 STL 받기</button></div>
+      </fieldset>
+      <fieldset>
+        <legend>담은 부품</legend>
+        <div id="stdList" class="alts"></div>
+        <div class="row"><button class="btn primary" id="stdZip">목록 ZIP 받기</button><button class="btn" id="stdShow">목록 한꺼번에 보기</button><button class="btn" id="stdClear">비우기</button></div>
+      </fieldset>
+    </section>
+
+    <!-- 기어박스 자동 설계 -->
+    <section id="paneBox" style="display:flex;flex-direction:column;gap:14px">
+      <fieldset>
+        <legend>공간 모양 (외곽 기준)</legend>
+        <div class="seg" id="shapeSeg">
+          <button data-v="rect" aria-pressed="true">사각 상자</button><button data-v="cyl" aria-pressed="false">원통</button><button data-v="poly" aria-pressed="false">직접 그리기</button>
+        </div>
+        <div class="grid3">
+          <label class="f" id="bWWrap">가로 X <span class="u">mm</span><input type="number" id="bW" value="90" min="20" step="1"></label>
+          <label class="f" id="bHWrap">세로 Y <span class="u">mm</span><input type="number" id="bH" value="70" min="20" step="1"></label>
+          <label class="f" id="bDiaWrap" hidden>지름 <span class="u">mm</span><input type="number" id="bDia" value="80" min="20" step="1"></label>
+          <label class="f">높이 Z <span class="u">mm</span><input type="number" id="bD" value="32" min="8" step="1"></label>
+        </div>
+        <div class="row" id="polyPresets" hidden>
+          <button class="btn" data-k="L">L자</button><button class="btn" data-k="T">T자</button><button class="btn" data-k="hex">육각형</button><button class="btn" data-k="trap">사다리꼴</button>
+        </div>
+        <svg id="shapeEd" viewBox="0 0 100 100" style="width:100%;height:auto;max-height:340px;background:var(--bg);border:1px solid var(--line);border-radius:7px;touch-action:none;user-select:none" aria-label="공간 모양 편집기"></svg>
+        <p class="hint" id="shapeHint"></p>
+        <details id="polyPtsBox" hidden>
+          <summary>꼭짓점 좌표 직접 입력</summary>
+          <textarea id="polyTxt" rows="6" style="width:100%;font:13px var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px"></textarea>
+          <button class="btn" id="polyApply">좌표 적용</button>
+        </details>
+      </fieldset>
+      <fieldset>
+        <legend>축 위치 고정</legend>
+        <div class="grid3" style="align-items:end">
+          <label class="chk" style="padding-bottom:6px"><input type="checkbox" id="fixIn"> 입력축</label>
+          <label class="f">X <span class="u">mm</span><input type="number" id="fixInX" step="1"></label>
+          <label class="f">Y <span class="u">mm</span><input type="number" id="fixInY" step="1"></label>
+          <label class="chk" style="padding-bottom:6px"><input type="checkbox" id="fixOut"> 출력축</label>
+          <label class="f">X <span class="u">mm</span><input type="number" id="fixOutX" step="1"></label>
+          <label class="f">Y <span class="u">mm</span><input type="number" id="fixOutY" step="1"></label>
+        </div>
+        <p class="hint">켜면 그 축은 이 자리에 두고 나머지 기어를 맞춰 설계합니다. 편집기에서 초록(입력)·빨강(출력) 점을 끌어 옮겨도 됩니다.</p>
+      </fieldset>
+      <fieldset>
+        <legend>기능</legend>
+        <div class="seg" id="funcSeg">
+          <button data-v="reduce" aria-pressed="true">감속기</button>
+          <button data-v="increase" aria-pressed="false">가속기</button>
+          <button data-v="planetary" aria-pressed="false">유성 감속기</button>
+          <button data-v="rightangle" aria-pressed="false">직각 전환</button>
+          <button data-v="reverse" aria-pressed="false">방향 반전</button>
+          <button data-v="transfer" aria-pressed="false">동력 전달</button>
+        </div>
+        <p class="hint" id="funcHint"></p>
+        <div class="grid2">
+          <label class="f" id="ratioWrap">변속비 <span class="u" id="ratioUnit">입력 : 출력 = n : 1</span><input type="number" id="bRatio" value="6" min="0.1" step="0.1"></label>
+          <label class="f" id="dirWrap">출력 회전 방향<select id="bDir"><option value="any">상관없음</option><option value="opposite">입력과 반대</option><option value="same">입력과 같음</option></select></label>
+          <label class="f">입력 회전수 <span class="u">rpm</span><input type="number" id="bRpm" value="60" min="1" step="1"></label>
+          <label class="f">비 허용오차 <span class="u">%</span><input type="number" id="bTol" value="3" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>동력원과 부하</legend>
+        <label class="chk"><input type="checkbox" id="dOn"> 출력에 걸리는 일로 동력원 고르기</label>
+        <div id="dWrap" hidden>
+          <div class="grid2">
+            <label class="f">부하 토크 <span class="u">N·cm (1 kgf·cm ≈ 9.8)</span><input type="number" id="dT" value="5" min="0.01" step="0.5"></label>
+            <label class="f">출력 회전수 <span class="u">rpm</span><input type="number" id="dN" value="20" min="0.1" step="1"></label>
+            <label class="f">동력원<select id="dMotor"><option value="auto">자동 추천</option><option value="nema17">NEMA17 스테퍼</option><option value="byj48">28BYJ-48 스테퍼</option><option value="n20_30">N20 기어드 DC 30 rpm</option><option value="n20_100">N20 기어드 DC 100 rpm</option><option value="n20_300">N20 기어드 DC 300 rpm</option><option value="m130">130 DC 모터</option><option value="sg90c">SG90 연속 회전 서보</option><option value="mg996c">MG996R 연속 회전 서보</option><option value="sg90">SG90 각도 서보 (0~180°)</option><option value="mg996">MG996R 각도 서보 (0~180°)</option><option value="m370">370 DC 모터</option><option value="m775">775 DC 모터</option><option value="tt">TT 기어드 모터</option><option value="crank">손 크랭크</option><option value="handwheel">핸드휠</option><option value="spring">태엽 동력 모듈</option><option value="water">소형 수차</option><option value="wind">소형 풍차</option><option value="air">소형 공압 모터</option><option value="stirling">스털링 엔진 모형</option><option value="steam">증기기관 모형</option><option value="engine">소형 가솔린 엔진 (모양 확인용)</option><option value="custom">직접 입력 (DC)</option></select></label>
+            <label class="chk" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="dBear" checked> 출력축에 베어링 자리</label>
+            <label class="f">모터 연결<select id="dLink"><option value="direct">직접 장착 (축에 기어)</option><option value="coupling">커플링 (별도 입력축)</option><option value="belt">타이밍벨트 (모터를 옆에)</option></select></label>
+            <label class="f">모터 고정<select id="dMount"><option value="face">앞면 나사</option><option value="clamp">몸통 클램프 (원통형 DC)</option></select></label>
+            <label class="f">축-기어 결합<select id="dJoin"><option value="dcut">D컷</option><option value="press">압입 (둥근 축)</option><option value="setscrew">D컷 + 멈춤나사</option><option value="snap">D컷 + 스냅링(E링)</option></select></label>
+            <label class="f">나사 체결<select id="dFasten"><option value="tap">셀프 태핑</option><option value="insert">인서트 너트</option></select></label>
+            <label class="f">중간축 지지<select id="dSup"><option value="bush">황동 부싱</option><option value="bear">기어 안 베어링</option><option value="pin">핀 위에서 회전</option></select></label>
+            <label class="f">출력 재료<select id="dMat"><option value="pla">PLA</option><option value="petg">PETG</option><option value="nylon">나일론</option></select></label>
+          </div>
+          <div class="grid2" id="dCustom" hidden>
+            <label class="f">정격 회전수 <span class="u">rpm</span><input type="number" id="dcRpm" value="100" min="1" step="1"></label>
+            <label class="f">정격 토크 <span class="u">N·cm</span><input type="number" id="dcT" value="2" min="0.01" step="0.1"></label>
+            <label class="f">전압 <span class="u">V</span><input type="number" id="dcVolt" value="6" min="1" step="0.5"></label>
+            <label class="f">축 지름 <span class="u">mm</span><input type="number" id="dcD" value="3" min="1" step="0.5"></label>
+            <label class="f">D컷 깊이 <span class="u">mm, 0=둥근 축</span><input type="number" id="dcCut" value="0.5" min="0" step="0.1"></label>
+            <label class="f">축 길이 <span class="u">mm</span><input type="number" id="dcLen" value="9" min="2" step="0.5"></label>
+            <label class="f">앞 돌출부 지름 <span class="u">mm</span><input type="number" id="dcBoss" value="5" min="0" step="0.5"></label>
+            <label class="f">나사 간격 <span class="u">mm, 2개</span><input type="number" id="dcPitch" value="9" min="0" step="0.5"></label>
+            <label class="f">몸통 지름 <span class="u">mm (클램프용)</span><input type="number" id="dcBody" value="12" min="4" step="0.5"></label>
+          </div>
+          <div id="dRec" class="alts"></div>
+          <p class="hint" id="dHint">출력축에서 필요한 힘(토크)과 빠르기를 넣으면 맞는 동력원과 변속비를 골라 위의 변속비·입력 회전수를 채웁니다. 기어 구멍은 모터 축에 맞추고, 하우징 바닥에 모터 고정 구멍을 뚫고, 아래 보고서에 배선과 아두이노 코드를 냅니다. 모터 값은 대표값이니 실물 치수를 확인하세요.</p>
+        </div>
+      </fieldset>
+      <details>
+        <summary>제작 조건 (프린터·축)</summary>
+        <div class="grid2">
+          <label class="f">최소 모듈 <span class="u">m, mm</span><input type="number" id="bMinM" value="1" min="0.3" step="0.1"></label>
+          <label class="f">최소 잇수<input type="number" id="bZmin" value="13" min="8" step="1"></label>
+          <label class="f">압력각 <span class="u">°</span><select id="bPa"><option>14.5</option><option selected>20</option><option>25</option></select></label>
+          <label class="f">최대 단수 <span class="u">평기어열</span><input type="number" id="bStages" value="3" min="1" max="4" step="1"></label>
+          <label class="f">축 지름 <span class="u">mm</span><input type="number" id="bShaft" value="4" min="1" step="0.5"></label>
+          <label class="f">벽 두께 <span class="u">mm</span><input type="number" id="bWall" value="3" min="1" step="0.5"></label>
+          <label class="f">부품 간 여유 <span class="u">mm</span><input type="number" id="bClear" value="1.5" min="0.3" step="0.1"></label>
+          <label class="f">치면 여유(백래시) <span class="u">mm/기어</span><input type="number" id="bBacklash" value="0.15" min="0" step="0.05"></label>
+          <label class="f">나선각 β <span class="u">° 0=평기어</span><input type="number" id="bHelix" value="0" min="0" max="45" step="5"></label>
+          <label class="chk" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="bHerring"> 헤링본 (V자)</label>
+        </div>
+        <p class="hint">나선각을 넣으면 평기어열이 헬리컬(또는 헤링본) 기어로 바뀝니다. 더 조용하고 강하지만 헬리컬은 축 방향 힘이 생기니, 출력하기 쉽고 축 방향 힘이 없는 헤링본을 권장합니다.</p>
+      </details>
+      <label class="chk"><input type="checkbox" id="bLive" checked> 값을 바꾸면 바로 다시 설계</label>
+      <button class="btn primary" id="runBox">최적 기어 설계</button>
+      <div id="altBox" class="alts"></div>
+      <button class="btn toTrain" hidden>이 설계를 자유 조립에서 고치기</button>
+      <button class="btn" id="bTrainIn">자유 조립 기어열을 이 공간·기능으로 만들기</button>
+      <p class="hint">자유 조립에서 만든 기어열을 위 공간 안에 넣고, 위에서 고른 기능(변속비·방향)을 목표로 삼습니다.</p>
+    </section>
+
+    <!-- 기어 직접 설계 -->
+    <section id="panePair" style="display:none;flex-direction:column;gap:14px">
+      <div class="seg seg3" id="typeSeg">
+        <button data-v="spur" aria-pressed="true">평기어</button>
+        <button data-v="bevel" aria-pressed="false">베벨기어</button>
+        <button data-v="planet" aria-pressed="false">유성기어</button>
+        <button data-v="rack" aria-pressed="false">랙·피니언</button>
+        <button data-v="worm" aria-pressed="false">웜기어</button>
+        <button data-v="cycloid" aria-pressed="false">사이클로이드</button>
+      </div>
+      <fieldset id="pCommon">
+        <legend>공통 파라미터</legend>
+        <div class="grid2">
+          <label class="f">모듈 m <span class="u">mm</span><input type="number" id="pM" value="1.5" min="0.3" step="0.25"></label>
+          <label class="f">압력각 α <span class="u">°</span><input type="number" id="pPa" value="20" min="10" max="30" step="0.5"></label>
+          <label class="f" id="pBWrap">이 폭 <span class="u" id="pBUnit">b, mm</span><input type="number" id="pB" value="8" min="0" step="0.5"></label>
+          <label class="f">백래시 <span class="u">mm/기어</span><input type="number" id="pBl" value="0.15" min="0" step="0.05"></label>
+        </div>
+      </fieldset>
+
+      <div id="fsSpur" class="tp" style="display:flex;flex-direction:column;gap:14px">
+        <fieldset>
+          <legend id="lg1">기어 1 (구동)</legend>
+          <div class="grid3">
+            <label class="f">잇수 z₁<input type="number" id="pZ1" value="15" min="6" step="1"></label>
+            <label class="f" id="pX1Wrap">전위계수 x₁<input type="number" id="pX1" value="0" step="0.05"></label>
+            <label class="f">구멍 지름 <span class="u">mm</span><input type="number" id="pBore1" value="5" min="0" step="0.1"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="pD1" checked> D컷 축 구멍 (모터 축 고정용, 0.5 mm 평면)</label>
+        </fieldset>
+        <fieldset>
+          <legend id="lg2">기어 2 (피동)</legend>
+          <label class="chk" id="pOn2Wrap"><input type="checkbox" id="pOn2" checked> 기어 2 사용 (끄면 단일 기어)</label>
+          <div class="grid3">
+            <label class="f">잇수 z₂<input type="number" id="pZ2" value="40" min="6" step="1"></label>
+            <label class="f" id="pX2Wrap">전위계수 x₂<input type="number" id="pX2" value="0" step="0.05"></label>
+            <label class="f">구멍 지름 <span class="u">mm</span><input type="number" id="pBore2" value="5" min="0" step="0.1"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="pD2"> D컷 축 구멍</label>
+        </fieldset>
+        <label class="chk" id="pAutoXWrap"><input type="checkbox" id="pAutoX" checked> 잇수 17 미만이면 언더컷 방지 전위 자동 적용</label>
+        <div class="grid2" id="pHelixWrap">
+          <label class="f">나선각 β <span class="u">° (0=평기어)</span><input type="number" id="pHelix" value="0" min="-45" max="45" step="5"></label>
+          <label class="chk" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="pHerring"> 헤링본 (V자)</label>
+        </div>
+        <label class="f" id="pSpiralWrap" hidden>스파이럴 나선각 <span class="u">° (0=직선 베벨, 보통 25~35)</span><input type="number" id="pSpiral" value="0" min="-40" max="40" step="5"></label>
+        <label class="f" id="pHubWrap" hidden>앞쪽 허브 길이 <span class="u">mm (축 고정용)</span><input type="number" id="pHub" value="5" min="0" step="0.5"></label>
+      </div>
+
+      <div id="fsPlanet" class="tp" style="display:none;flex-direction:column;gap:14px">
+        <fieldset>
+          <legend>잇수와 개수</legend>
+          <div class="grid3">
+            <label class="f">선기어 z<sub>s</sub><input type="number" id="qZs" value="15" min="6" step="1"></label>
+            <label class="f">유성기어 z<sub>p</sub><input type="number" id="qZp" value="15" min="6" step="1"></label>
+            <label class="f">유성기어 수 N<input type="number" id="qN" value="3" min="2" max="8" step="1"></label>
+          </div>
+          <p class="hint" id="qInfo"></p>
+        </fieldset>
+        <div class="grid2">
+          <label class="f">선기어 구멍 <span class="u">mm, D컷</span><input type="number" id="qSunBore" value="4.1" min="1" step="0.1"></label>
+          <label class="f">유성 핀 지름 <span class="u">mm</span><input type="number" id="qPin" value="3" min="1" step="0.5"></label>
+        </div>
+      </div>
+
+      <div id="fsRack" class="tp" style="display:none;flex-direction:column;gap:14px">
+        <fieldset>
+          <legend>피니언과 랙</legend>
+          <div class="grid2">
+            <label class="f">피니언 잇수 z<input type="number" id="rZ" value="14" min="6" step="1"></label>
+            <label class="f">피니언 구멍 <span class="u">mm, D컷</span><input type="number" id="rBore" value="5" min="0" step="0.1"></label>
+            <label class="f">랙 잇수<input type="number" id="rN" value="20" min="4" step="1"></label>
+            <label class="f">랙 등 두께 <span class="u">mm</span><input type="number" id="rH" value="5" min="1" step="0.5"></label>
+          </div>
+          <p class="hint" id="rInfo"></p>
+        </fieldset>
+      </div>
+      <div id="fsWorm" class="tp" style="display:none;flex-direction:column;gap:14px">
+        <fieldset>
+          <legend>웜과 웜휠</legend>
+          <div class="grid3">
+            <label class="f">웜 줄 수<select id="wN"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+            <label class="f">직경계수 q<input type="number" id="wQ" value="10" min="5" step="1"></label>
+            <label class="f">휠 잇수 z<input type="number" id="wZ" value="30" min="15" step="1"></label>
+            <label class="f">웜 길이 <span class="u">0=자동</span><input type="number" id="wL" value="0" min="0" step="1"></label>
+            <label class="f">웜 구멍 <span class="u">mm</span><input type="number" id="wB1" value="4" min="0" step="0.1"></label>
+            <label class="f">휠 구멍 <span class="u">mm</span><input type="number" id="wB2" value="5" min="0" step="0.1"></label>
+          </div>
+          <p class="hint" id="wInfo"></p>
+        </fieldset>
+      </div>
+
+      <div id="fsCyc" class="tp" style="display:none;flex-direction:column;gap:14px">
+        <fieldset>
+          <legend>사이클로이드 감속기</legend>
+          <div class="grid3">
+            <label class="f">링 핀 수 N<input type="number" id="yN" value="12" min="5" step="1"></label>
+            <label class="f">핀 원 반지름 <span class="u">mm</span><input type="number" id="yR" value="30" min="10" step="1"></label>
+            <label class="f">링 핀 반지름 <span class="u">mm</span><input type="number" id="yRp" value="2.5" min="0.5" step="0.25"></label>
+            <label class="f">편심량 e <span class="u">mm</span><input type="number" id="yE" value="1.2" min="0.3" step="0.1"></label>
+            <label class="f">원판 두께 <span class="u">mm</span><input type="number" id="yT" value="6" min="2" step="0.5"></label>
+            <label class="f">백래시 <span class="u">mm</span><input type="number" id="yBl" value="0.15" min="0" step="0.05"></label>
+            <label class="f">출력 핀 수<input type="number" id="yNo" value="6" min="2" step="1"></label>
+            <label class="f">출력 핀 반지름 <span class="u">mm</span><input type="number" id="yRo2" value="2.5" min="1" step="0.25"></label>
+            <label class="f">출력 핀 원 <span class="u">0=자동</span><input type="number" id="yRo" value="0" min="0" step="1"></label>
+            <label class="f">축 지름 <span class="u">mm</span><input type="number" id="ySd" value="5" min="2" step="0.5"></label>
+          </div>
+          <p class="hint" id="yInfo"></p>
+        </fieldset>
+      </div>
+
+      <label class="f">입력 회전수 <span class="u">rpm</span><input type="number" id="pRpm" value="60" min="1" step="1"></label>
+      <button class="btn primary" id="runPair">기어 생성</button>
+      <button class="btn toTrain" hidden>이 설계를 자유 조립에서 고치기</button>
+    </section>
+
+    <!-- 자유 조립 -->
+    <section id="paneTrain" style="display:none;flex-direction:column;gap:14px">
+      <p class="hint">축을 하나씩 이어 붙여 기어열을 만듭니다. 각 단은 기존 축(S0, S1…)에서 출발해 새 축을 만들고, 한 축에 여러 기어를 층으로 쌓을 수 있습니다. 베벨 단은 축을 원하는 수직 방향으로 꺾습니다. 값을 바꾸면 바로 다시 계산합니다.</p>
+      <fieldset>
+        <legend>공통</legend>
+        <div class="grid3">
+          <label class="f">입력 rpm<input type="number" id="tRpm" min="1" step="1"></label>
+          <label class="f">압력각 <span class="u">°</span><input type="number" id="tPa" min="10" max="30" step="0.5"></label>
+          <label class="f">백래시 <span class="u">mm</span><input type="number" id="tBl" min="0" step="0.05"></label>
+          <label class="f">축 지름 <span class="u">mm</span><input type="number" id="tShaft" min="1" step="0.5"></label>
+          <label class="f">층 간격 <span class="u">mm</span><input type="number" id="tGap" min="0" step="0.5"></label>
+          <label class="f">여유 <span class="u">mm</span><input type="number" id="tClear" min="0.3" step="0.1"></label>
+        </div>
+        <label class="f">입력축 S0 방향<select id="tAxis"></select></label>
+      </fieldset>
+      <fieldset>
+        <legend>단 (기어 쌍)</legend>
+        <div id="stList" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div class="row">
+          <button class="btn" id="addSpur">+ 평기어 단</button>
+          <button class="btn" id="addBevel">+ 베벨기어 단</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>목표 기능 · 기어박스 연동</legend>
+        <div class="grid2">
+          <label class="f">기능<select id="tgFunc"><option value="none">정하지 않음</option><option value="reduce">감속</option><option value="increase">가속</option><option value="reverse">방향 반전</option><option value="transfer">동력 전달</option></select></label>
+          <label class="f" id="tgRatioW">변속비 <span class="u" id="tgRatioU">입력 : 출력 = n : 1</span><input type="number" id="tgRatio" min="1" step="0.1"></label>
+          <label class="f" id="tgDirW">출력 회전 방향<select id="tgDir"><option value="any">상관없음</option><option value="same">입력과 같음</option><option value="opposite">입력과 반대</option></select></label>
+          <label class="f">허용오차 <span class="u">%</span><input type="number" id="tgTol" min="0.1" step="0.5"></label>
+        </div>
+        <button class="btn" id="tFit">목표에 맞게 잇수·방향 자동 맞춤</button>
+        <p class="hint" id="tFitMsg">출력은 마지막 단이 만든 축입니다. 자동 맞춤은 단 구조는 그대로 두고 출력까지 가는 단의 잇수를 바꾸며, 방향이 틀리면 베벨 맞물림 쪽을 바꾸거나 아이들러 단을 덧붙입니다.</p>
+        <label class="chk"><input type="checkbox" id="tEnc"> 기어박스 공간 안에 넣고 하우징 만들기</label>
+        <p class="hint" id="tEncInfo"></p>
+        <button class="btn" id="tGoBox">공간 모양·크기 바꾸기 (기어박스 탭)</button>
+      </fieldset>
+      <fieldset>
+        <legend>작동</legend>
+        <div class="grid2">
+          <label class="f">입력 토크 <span class="u">N·cm (0=표시 안 함)</span><input type="number" id="tTorque" min="0" step="1"></label>
+          <label class="chk" style="align-self:end;padding-bottom:6px"><input type="checkbox" id="tRev"> 입력을 거꾸로 돌리기</label>
+        </div>
+        <p class="hint">입력 회전수(rpm)는 위 '공통'에서 바꿉니다. 출력 토크는 맞물림마다 효율(평기어 98%, 베벨 95%)을 곱한 어림값입니다.</p>
+      </fieldset>
+      <fieldset>
+        <legend>지지 구조</legend>
+        <label class="chk"><input type="checkbox" id="tBase"> 바닥판</label>
+        <label class="chk"><input type="checkbox" id="tEnds"> 축 끝 지지대 (기어를 피해 자동 배치)</label>
+        <div id="wallList" style="display:flex;flex-direction:column;gap:8px"></div>
+        <button class="btn" id="addWall">+ 지지벽</button>
+        <p class="hint">지지벽은 축이 지나가는 자리에 구멍이 자동으로 뚫리고, 그 쪽 축 끝 지지대를 대신합니다. Z 벽은 기둥 4개로 받치는 선반입니다.</p>
+        <details id="skipBox">
+          <summary>축 끝 지지대 하나씩 끄기</summary>
+          <div class="skipgrid" id="skipGrid"></div>
+        </details>
+      </fieldset>
+      <button class="btn" id="tReset">예제로 되돌리기</button>
+    </section>
+
+    <!-- 캠 -->
+    <section id="paneLink" style="display:none;flex-direction:column;gap:14px">
+      <fieldset>
+        <legend>기구 종류</legend>
+        <div class="seg" id="lkTypeSeg" style="grid-template-columns:1fr 1fr">
+          <button data-v="slider">크랭크·슬라이더</button><button data-v="yoke">스카치 요크</button><button data-v="fourbar">4절 링크</button><button data-v="jansen">얀센 링크</button>
+          <button data-v="geneva">제네바 기구</button><button data-v="ratchet">래칫 기구</button><button data-v="screw">리드스크루</button><button data-v="diff">차동 기어</button>
+        </div>
+        <p class="hint" id="lkHint"></p>
+      </fieldset>
+      <fieldset id="lkGoalFs">
+        <legend>목표로 치수 찾기</legend>
+        <div class="grid3">
+          <label class="f" id="lkGSW">행정 <span class="u">mm</span><input type="number" id="lkGS" min="2" step="1"></label>
+          <label class="f" id="lkGWW">흔들림 각 <span class="u">°</span><input type="number" id="lkGW" min="5" max="120" step="1"></label>
+          <label class="f">급속귀환비 <span class="u">1 = 같은 속도</span><input type="number" id="lkGQ" min="1" max="2" step="0.05"></label>
+        </div>
+        <button class="btn" id="lkSynth">목표에 맞춰 치수 찾기</button>
+        <p class="hint" id="lkSynthMsg"></p>
+      </fieldset>
+      <fieldset>
+        <legend>치수</legend>
+        <div class="grid3" id="lkSlider">
+          <label class="f">크랭크 r <span class="u">mm</span><input type="number" id="lkR" min="3" step="1"></label>
+          <label class="f">연결 막대 L <span class="u">mm</span><input type="number" id="lkL" min="5" step="1"></label>
+          <label class="f">편심 e <span class="u">mm</span><input type="number" id="lkE" step="1"></label>
+        </div>
+        <div class="grid3" id="lkFour" hidden>
+          <label class="f">고정 a <span class="u">mm</span><input type="number" id="lkA" min="10" step="1"></label>
+          <label class="f">크랭크 b <span class="u">mm</span><input type="number" id="lkB" min="3" step="1"></label>
+          <label class="f">커플러 c <span class="u">mm</span><input type="number" id="lkC" min="5" step="1"></label>
+          <label class="f">흔들이 d <span class="u">mm</span><input type="number" id="lkD" min="5" step="1"></label>
+          <label class="f">커플러 점 P <span class="u">A에서 B쪽</span><input type="number" id="lkP" step="1"></label>
+          <label class="f">P 옆 거리 <span class="u">mm, 0=없음</span><input type="number" id="lkQ" step="1"></label>
+        </div>
+        <div class="grid3" id="lkYoke" hidden>
+          <label class="f">크랭크 r <span class="u">mm, 행정 = 2r</span><input type="number" id="lkYr" min="3" step="1"></label>
+        </div>
+        <div class="grid3" id="lkJansen" hidden>
+          <label class="f">크랭크 m <span class="u">mm, 전체 비율</span><input type="number" id="lkJm" min="5" step="1"></label>
+        </div>
+        <div class="grid3" id="lkGeneva" hidden>
+          <label class="f">홈 수 n <span class="u">3~12</span><input type="number" id="lkGn" min="3" max="12" step="1"></label>
+          <label class="f">핀 반지름 a <span class="u">mm</span><input type="number" id="lkGa" min="10" step="1"></label>
+        </div>
+        <div class="grid3" id="lkRatchet" hidden>
+          <label class="f">톱니 수 <span class="u">개</span><input type="number" id="lkRz" min="6" max="60" step="1"></label>
+          <label class="f">바깥 반지름 <span class="u">mm</span><input type="number" id="lkRR" min="10" step="1"></label>
+          <label class="f">톱니 깊이 <span class="u">mm</span><input type="number" id="lkRh" min="1.5" step="0.5"></label>
+          <label class="f">멈춤쇠 길이 <span class="u">mm</span><input type="number" id="lkRL" min="10" step="1"></label>
+        </div>
+        <div class="grid3" id="lkScrew" hidden>
+          <label class="f">나사 지름 <span class="u">mm</span><input type="number" id="lkSdia" min="6" step="1"></label>
+          <label class="f">피치 <span class="u">mm</span><input type="number" id="lkSp" min="1" step="0.5"></label>
+          <label class="f">줄 수 <span class="u">리드 = 피치×줄</span><input type="number" id="lkSs" min="1" max="4" step="1"></label>
+          <label class="f">나사 길이 <span class="u">mm</span><input type="number" id="lkSL" min="20" step="5"></label>
+        </div>
+        <div class="grid3" id="lkDiff" hidden>
+          <label class="f">모듈 <span class="u">mm</span><input type="number" id="lkDm" min="0.8" step="0.25"></label>
+          <label class="f">해 기어 <span class="u">잇수, 짝수</span><input type="number" id="lkDzs" min="8" step="2"></label>
+          <label class="f">유성 기어 <span class="u">잇수</span><input type="number" id="lkDzp" min="8" step="1"></label>
+          <label class="f">모터 피니언 <span class="u">잇수</span><input type="number" id="lkDzm" min="8" step="1"></label>
+          <label class="f">캐리어 기어 <span class="u">잇수</span><input type="number" id="lkDzc" min="20" step="1"></label>
+          <label class="f">좌우 속도 차 <span class="u">%</span><input type="number" id="lkDdv" min="-100" max="100" step="5"></label>
+        </div>
+        <div class="grid3">
+          <label class="f">링크 폭 <span class="u">mm</span><input type="number" id="lkW" min="5" step="1"></label>
+          <label class="f">두께 <span class="u">mm</span><input type="number" id="lkT" min="2" step="0.5"></label>
+          <label class="f">핀 지름 <span class="u">mm</span><input type="number" id="lkPin" min="2" step="0.5"></label>
+          <label class="f">입력축 <span class="u">mm</span><input type="number" id="lkSd" min="2" step="0.5"></label>
+          <label class="f">회전수 <span class="u">rpm</span><input type="number" id="lkRpm" min="1" step="1"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>동력원과 마운트</legend>
+        <div class="grid3">
+          <label class="f">모터<select id="lkMotor"><option value="auto">자동 추천</option><option value="none">없음 (축만)</option><option value="nema17">NEMA17 스테퍼</option><option value="byj48">28BYJ-48 스테퍼</option><option value="n20_30">N20 기어드 DC 30 rpm</option><option value="n20_100">N20 기어드 DC 100 rpm</option><option value="n20_300">N20 기어드 DC 300 rpm</option><option value="tt">TT 기어드 DC 모터</option><option value="m370">370 DC 모터</option><option value="sg90c">SG90 연속 회전 서보</option><option value="mg996c">MG996R 연속 회전 서보</option></select></label>
+          <label class="f" id="lkFW"><span id="lkFL">슬라이더 부하 힘</span> <span class="u">N</span><input type="number" id="lkF" min="0" step="0.5"></label>
+          <label class="f" id="lkTW"><span id="lkTL">흔들이 부하 토크</span> <span class="u">N·cm</span><input type="number" id="lkTq" min="0" step="0.5"></label>
+          <label class="f">모터 고정<select id="lkMount"><option value="face">앞면 나사</option><option value="clamp">몸통 클램프 (N20)</option></select></label>
+          <label class="f">감속 기어<select id="lkRed"><option value="auto">자동</option><option value="1">없음 (직결)</option><option value="2">2 : 1</option><option value="3">3 : 1</option><option value="4">4 : 1</option><option value="5">5 : 1</option></select></label>
+        </div>
+        <div id="lkRec" class="alts"></div>
+        <p class="hint" id="lkDrvHint">힘이 모자라면 감속 기어 한 단을 바닥판 밑에 넣습니다: 모터 축의 피니언이 입력축의 큰 기어를 돌리고, 모터는 기둥 4개짜리 브래킷에 매달립니다. 감속이 없으면 크랭크를 모터 축에 바로 끼웁니다. 모터는 바닥판 밑에 고정되고, 나사 머리는 바닥판 자리파기에 묻히며, 모터가 밑으로 나오면 받침 다리가 생깁니다. 각도 서보(0~180°)는 크랭크를 한 바퀴 돌리지 못해 뺐습니다.</p>
+      </fieldset>
+      <fieldset>
+        <legend>출력 운동</legend>
+        <svg id="lkChart" viewBox="0 0 340 190" style="width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:7px"></svg>
+        <p class="hint" id="lkChartHint"></p>
+      </fieldset>
+    </section>
+    <section id="paneCam" style="display:none;flex-direction:column;gap:14px">
+      <fieldset>
+        <legend>캠 종류</legend>
+        <div class="seg seg4" id="camTypeSeg">
+          <button data-v="disk">원판 캠</button><button data-v="groove">홈 캠</button><button data-v="barrel">원통 캠</button><button data-v="face">정면 캠</button>
+        </div>
+        <div class="seg seg4" id="camFolSeg">
+          <button data-v="knife">칼날</button><button data-v="roller">롤러</button><button data-v="flat">평면</button><button data-v="swing">스윙 팔</button>
+        </div>
+        <p class="hint" id="camHint"></p>
+      </fieldset>
+      <fieldset>
+        <legend>예제로 시작</legend>
+        <div class="row" id="camPresets"></div>
+      </fieldset>
+      <fieldset>
+        <legend>치수</legend>
+        <div class="grid3">
+          <label class="f"><span id="cRbL">기초원 반지름</span> <span class="u">mm</span><input type="number" id="cRb" min="5" step="1"></label>
+          <label class="f" id="cRrW"><span id="cRrL">롤러 반지름</span> <span class="u">mm</span><input type="number" id="cRr" min="1" step="0.5"></label>
+          <label class="f" id="cEW">편심 e <span class="u">mm</span><input type="number" id="cE" step="1"></label>
+          <label class="f" id="cTW">캠 두께 <span class="u">mm</span><input type="number" id="cT" min="3" step="1"></label>
+          <label class="f" id="cDgW">홈 깊이 <span class="u">mm</span><input type="number" id="cDg" min="2" step="0.5"></label>
+          <label class="f">축 지름 <span class="u">mm</span><input type="number" id="cSd" min="2" step="0.5"></label>
+          <label class="f">회전수 <span class="u">rpm</span><input type="number" id="cRpm" min="1" step="1"></label>
+          <label class="f" id="cSwDW">피벗 거리 <span class="u">mm</span><input type="number" id="cSwD" min="10" step="1"></label>
+          <label class="f" id="cSwLW">팔 길이 <span class="u">mm</span><input type="number" id="cSwL" min="10" step="1"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>운동 (변위 곡선)</legend>
+        <div class="seg" id="camModeSeg" style="grid-template-columns:1fr 1fr">
+          <button data-v="program">구간으로 만들기</button><button data-v="custom">직접 그리기</button>
+        </div>
+        <label class="f">로브 수 <span class="u">한 바퀴에 반복</span><input type="number" id="cLobes" min="1" max="8" step="1"></label>
+        <div id="camSegs" style="display:flex;flex-direction:column;gap:6px"></div>
+        <button class="btn" id="camAddSeg">+ 구간</button>
+        <svg id="camChart" viewBox="0 0 340 190" style="width:100%;height:auto;background:var(--bg);border:1px solid var(--line);border-radius:7px;touch-action:none;user-select:none"></svg>
+        <p class="hint" id="camChartHint"></p>
+        <details id="camPtsBox">
+          <summary>점 좌표 직접 입력</summary>
+          <textarea id="camPtsTxt" rows="6" style="width:100%;font:13px var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px"></textarea>
+          <button class="btn" id="camPtsApply">좌표 적용</button>
+        </details>
+      </fieldset>
+    </section>
+
+    <div class="export">
+      <legend style="font:600 11px var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">내보내기</legend>
+      <label class="chk"><input type="checkbox" id="xHousing" checked> 하우징·지지 구조와 축 핀 포함</label>
+      <div class="row">
+        <button class="btn primary" id="expZip">STL 묶음 저장 (.zip)</button>
+        <button class="btn" id="expJson">설계 파일 저장 (.json)</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="impJson">설계 파일 열기</button>
+        <input type="file" id="fileIn" accept=".json,application/json" hidden>
+      </div>
+      <p class="hint">ZIP 안에 부품별 STL, 출력판 배치 STL, 조립 상태 STL, 그리고 치수를 바꿔 다시 만들 수 있는 OpenSCAD 소스(.scad)와 설계 파일(.json)이 들어 있습니다.</p>
+    </div>
+  </aside>
+
+  <main>
+    <div class="stage" id="stage">
+      <div class="hud" id="hud"></div>
+      <div class="legend" id="legend"></div>
+      <div class="simbar">
+        <button class="btn primary" id="play">일시정지</button>
+        <label>속도 <input type="range" id="speed" min="0.05" max="2" step="0.05" value="0.5"></label>
+        <label class="chk"><input type="checkbox" id="showBox" checked> 하우징·지지대</label>
+        <span class="sp"></span>
+        <button class="btn" id="check">간섭 검사</button>
+        <button class="btn" id="fit">화면 맞춤</button>
+      </div>
+    </div>
+    <div class="report">
+      <div>
+        <h2>검사 결과</h2>
+        <ul class="checks" id="checks"></ul>
+      </div>
+      <div style="min-width:0">
+        <h2 id="tblTitle">기어 사양</h2>
+        <div class="tblwrap"><table id="gtable"></table></div>
+      </div>
+      <div id="kitBox" class="kit" hidden></div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script id="core">
