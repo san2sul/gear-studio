@@ -175,7 +175,7 @@ td .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:
         <div id="asmList" style="display:flex;flex-direction:column;gap:10px"></div>
         <div class="row" style="margin-top:10px"><select id="asmAddType"></select><button class="btn primary" id="asmAdd">끝에 더하기</button></div>
         <div class="row" style="margin-top:6px"><button class="btn" id="asmFromLink">동작 기구 탭의 설계 넣기</button><button class="btn" id="asmReset">처음 예시로</button></div>
-        <p class="hint">직선 출력(슬라이더·요크·리드스크루)과 얀센 다리는 사슬의 끝에 둡니다. 직선 운동을 다시 회전으로 잇는 랙·캠 이음과 한 입력을 여러 갈래로 나누는 것은 다음 단계입니다.</p>
+        <p class="hint">직선 출력(슬라이더·요크·리드스크루)은 랙·피니언으로 다음 기구를 왕복 회전시킵니다. 얀센 다리는 사슬의 끝에 둡니다. 한 입력을 여러 갈래로 나누는 것은 다음 단계입니다.</p>
       </fieldset>
     </section>
 
@@ -4900,7 +4900,12 @@ function modelPorts(D, model) {
     const p = parts[q.part], T0 = p.motion(0);
     const smp = q.kind === 'rot' ? th => spinAbout(T0, p.motion(tOf(th)), q.dir) : th => { const T = p.motion(tOf(th)); return V3.dot([T[3] - T0[3], T[7] - T0[7], T[11] - T0[11]], q.dir); };
     smp.wrap = q.kind === 'rot';
-    q.of = periodicFn(smp);
+    if (q.kind === 'rot') q.of = periodicFn(smp);
+    else {   // 직선: 값을 바로 잼 (리드스크루처럼 여러 바퀴 뒤에 되돌아오는 것도 맞게). 범위는 기구 한 주기에서
+      const span = Math.min(400 * PI, Math.max(2 * PI, Math.abs(P.rate) * (isFinite(model.period) ? model.period : 0))), N = 720; let a = Infinity, b = -Infinity;
+      for (let i = 0; i <= N; i++) { const v = smp(span * i / N); a = Math.min(a, v); b = Math.max(b, v); }
+      q.of = smp; q.of.range = [a, b]; q.of.adv = 0;
+    }
   }
   return (model.ports = P);
 }
@@ -4909,8 +4914,10 @@ function modelPorts(D, model) {
  design = { kind:'asm', rpm, motor, mods:[{ design, from:'out'|'out2', link:{ kind:'shaft'|'mesh'|'belt', zA, zB, m, ang } }] }
  첫 기구가 동력원을 받고, 다음 기구는 앞 기구의 출력 포트(from)에 이음(link)으로 이어짐. link.ang 는 옆으로 놓는 방향(°)
  모듈 k 의 입력 각도 θk 를 차례로 구하고, 그 기구의 시간 t = θk / rate 로 움직임을 돌림 */
-const ASM_KINDS = { shaft: '축 직결 (커플링)', mesh: '기어 물림', belt: '벨트 (GT2)' };
-const ASM_ETA = { shaft: 0.98, mesh: 0.95, belt: 0.95 };
+const ASM_KINDS = { shaft: '축 직결 (커플링)', mesh: '기어 물림', belt: '벨트 (GT2)', rack: '랙·피니언 (직선→회전)' };
+// 이음 비: 뒤 각도 = 앞 값 × 비 (앞 값은 회전이면 rad, 직선이면 mm)
+function asmRatio(L) { return L.kind === 'shaft' ? 1 : L.kind === 'mesh' ? -L.zA / L.zB : L.kind === 'rack' ? 2 / ((L.m || 1) * (L.zB || 16)) : L.zA / L.zB; }
+const ASM_ETA = { shaft: 0.98, mesh: 0.95, belt: 0.95, rack: 0.9 };
 const ASM_PULLEY = [16, 20, 24, 30, 36, 40, 60];
 const ASM_BELTS = [100, 110, 122, 140, 158, 200, 232, 280, 300, 400, 500, 610, 852, 1000];
 function asmDefault() {
@@ -4963,8 +4970,8 @@ function asmModel(D) {
   for (let k = M.length - 1; k >= 0; k--) {
     req[k] = own(M[k]);
     if (k + 1 < M.length) { const q = portOf(k + 1), L = asmLinkFix(mods[k + 1].link);
-      if (q && q.kind === 'rot') { let g = 0; for (let i = 0; i < 360; i++) g = Math.max(g, Math.abs(q.of((i + 1) * PI / 180) - q.of(i * PI / 180)) / (PI / 180));
-        const r = L.kind === 'shaft' ? 1 : L.zA / L.zB; gain[k] = g * r / ASM_ETA[L.kind]; req[k] += req[k + 1] * gain[k]; } }
+      if (q) { if (q.kind === 'lin') L.kind = 'rack'; else if (L.kind === 'rack') L.kind = 'mesh'; let g = 0; for (let i = 0; i < 360; i++) g = Math.max(g, Math.abs(q.of((i + 1) * PI / 180) - q.of(i * PI / 180)) / (PI / 180));
+        const r = Math.abs(asmRatio(L)); gain[k] = g * r / ASM_ETA[L.kind]; req[k] += req[k + 1] * gain[k]; } }
   }
   model.loads = { own: M.map(own), req, gain };
   if (drv0 !== 'none' && mods[0].design.drive) {   // 1번 기구에 뒤 기구들의 부하를 얹어 모터를 다시 고름
@@ -4977,8 +4984,10 @@ function asmModel(D) {
     const lk = { k, L, qa, ok: false };
     links.push(lk);
     if (!qa) { model.checks.push({ st: 'bad', txt: `${k}번 ${A.name}에는 다음 기구로 이을 출력축이 없습니다 (발끝 궤적처럼 끝에서 쓰는 동작).` }); B.pose = XF.T(asmRight(M, k), 0, 0); continue; }
-    if (qa.kind !== 'rot') { model.checks.push({ st: 'bad', txt: `${k}번 ${A.name}의 출력은 직선 운동이라 아직 회전 기구로 이을 수 없습니다 (랙·캠 이음은 다음 단계).` }); B.pose = XF.T(asmRight(M, k), 0, 0); continue; }
     if (!B.pin) { model.checks.push({ st: 'bad', txt: `${k + 1}번 ${B.name}에서 입력축을 찾지 못했습니다.` }); B.pose = XF.T(asmRight(M, k), 0, 0); continue; }
+    // 직선 출력은 랙·피니언으로만, 회전 출력은 랙을 쓸 수 없음
+    if (qa.kind === 'lin') L.kind = 'rack'; else if (L.kind === 'rack') L.kind = 'mesh';
+    if (L.kind === 'rack') { asmRackLink(A, B, L, qa, lk, k, model, steps); continue; }
     const wA = V3.unit(xfDir(A.pose, qa.dir)), oA = XF.apply(A.pose, qa.at), dA = qa.shaft ? qa.shaft.d : 5, dB = B.pin.shaft ? B.pin.shaft.d : 5;
     const ref = xfDir(A.pose, [1, 0, 0]), F0 = frameOf([0, 0, 0], wA, ref), auto = L.kind !== 'shaft' && !isFinite(+L.ang) || L.ang === 'auto';
     let perp = null;
@@ -5042,7 +5051,7 @@ function asmModel(D) {
     for (let k = 1; k < M.length; k++) {
       const lk = links[k - 1];
       if (!lk.ok) { th.push(0); phi.push(null); continue; }
-      const a = lk.qa.of(th[k - 1]), L = lk.L, r = L.kind === 'shaft' ? 1 : L.kind === 'mesh' ? -L.zA / L.zB : L.zA / L.zB, b = a * r;
+      const a = lk.qa.of(th[k - 1]), L = lk.L, r = asmRatio(L), b = a * r;
       phi.push({ a, b }); th.push(-b);   // B 입력 dir = −wA
     }
     memoT = t; memo = { th, phi }; return memo;
@@ -5063,7 +5072,7 @@ function asmModel(D) {
   });
   // 이음 부품은 앞(A) 또는 뒤(B) 축과 함께 돎
   links.forEach(lk => (lk.parts || []).forEach(q => model.parts.push({ name: `이음 ${lk.k}→${lk.k + 1}: ${q.name}`, file: q.file, tris: q.tris, mod: -1,
-    motion: t => { const c = chain(t).phi[lk.k]; return XF.mul(q.frame, XF.Rz((q.ph || 0) + (c ? (q.spin === 'A' ? c.a : c.b) : 0))); } })));
+    motion: t => { const c = chain(t).phi[lk.k]; return q.slide ? XF.mul(q.frame, XF.T(c ? c.a : 0, 0, 0)) : XF.mul(q.frame, XF.Rz((q.ph || 0) + (c ? (q.spin === 'A' ? c.a : c.b) : 0))); } })));
   if (base) asmBase(M, model, addBom, steps);
   // 기구끼리 겹침 (처음 자세의 상자)
   const boxOf = k => { const ts = model.parts.filter(p => p.mod === k).map(p => xfTris(p.tris, p.motion(0))).concat(model.housing.filter(h => h.mod === k && h.assembly !== false).map(h => h.tris)); return trisBounds([].concat(...ts)); };
@@ -5074,15 +5083,15 @@ function asmModel(D) {
   }
   // 한 방향으로만 도는 기구(래칫)가 거꾸로 돌려지는지
   { const T = m0Period(M[0].m), c = chain(T);
-    M.forEach((X, k) => { if (k && X.d.kind === 'linkage' && X.d.type === 'ratchet' && links[k - 1].ok && c.th[k] / (X.P.rate || 1) < -1e-6)
+    M.forEach((X, k) => { if (k && X.d.kind === 'linkage' && X.d.type === 'ratchet' && links[k - 1].ok && links[k - 1].L.kind !== 'rack' && c.th[k] / (X.P.rate || 1) < -1e-6)
       model.checks.push({ st: 'bad', txt: `${k + 1}번 래칫 기구가 거꾸로 돌려져 멈춤쇠에 걸립니다. 이음을 기어 물림↔벨트로 바꾸거나 기어를 하나 더 넣어 방향을 뒤집으세요.` }); }); }
   // 끝 출력과 비
   const last = M[M.length - 1], outs = last.P.list.filter(q => q.role === 'out');
-  const thEnd = th0 => { let th = th0; for (let k = 1; k < M.length; k++) { const lk = links[k - 1]; if (!lk.ok) return null; const L = lk.L, r = L.kind === 'shaft' ? 1 : L.kind === 'mesh' ? -L.zA / L.zB : L.zA / L.zB; th = -lk.qa.of(th) * r; } return th; };
+  const thEnd = th0 => { let th = th0; for (let k = 1; k < M.length; k++) { const lk = links[k - 1]; if (!lk.ok) return null; const L = lk.L, r = asmRatio(L); th = -lk.qa.of(th) * r; } return th; };
   const m0 = M[0].m, rpm = m0.thOf ? m0.thOf(1) * 60 / (2 * PI) : (M[0].d.rpm || 0);
   const rev = thEnd(2 * PI);
   model.hud = [['입력', fmt(rpm, 1) + ' rpm'], ['기구', M.length + '개']];
-  if (rev !== null) model.hud.push([`${M.length}번 입력`, `입력 1바퀴에 ${fmt(Math.abs(rev) / (2 * PI), 3)}바퀴`]);
+  if (rev !== null) model.hud.push([`${M.length}번 입력`, Math.abs(rev) < 1e-6 ? '왕복 (제자리로 돌아옴)' : `입력 1바퀴에 ${fmt(Math.abs(rev) / (2 * PI), 3)}바퀴`]);
   outs.forEach(q => { if (rev === null) return; const f = q.of; model.hud.push([`끝 출력 ${q.label || q.id}`, q.kind === 'rot' ? `${fmt((f.range[1] - f.range[0]) / D2R, 0)}° 범위` : `${fmt(f.range[1] - f.range[0], 1)} mm 행정`]); });
   model.table = { head: ['#', '기구', '이음', '출력'], rows: M.map((X, k) => ({ part: X.first, cells: [String(k + 1), X.name, k ? (links[k - 1].ok ? ASM_KINDS[links[k - 1].L.kind] : '이어지지 않음') : '동력원', X.P.list.filter(q => q.role === 'out').map(q => q.label || q.id).join(', ') || '끝 동작'] })) };
   model.bom = [...bom.values()]; model.steps = steps;
@@ -5118,6 +5127,29 @@ function asmBase(M, model, addBom, steps) {
   model.checks.push({ st: W > 220 || H > 220 ? 'warn' : 'ok', txt: `공통 바탕판 <em>${fmt(W, 0)}×${fmt(H, 0)} mm</em>, 기둥 ${np}개${W > 220 || H > 220 ? ' · 출력판(220 mm)보다 커서 나눠 출력하거나 합판·알루미늄 판을 쓰세요' : ''}` });
   if (hung.length) model.checks.push({ st: 'warn', txt: `${hung.join(', ')}번 기구는 뒤집혀 매달려 있어 바탕판 기둥으로 받치지 못합니다. 위쪽 틀에 매다세요.` });
   steps.unshift(`공통 바탕판에 기둥을 M3 볼트로 세우고, 각 기구 바닥판 네 모서리를 기둥 위에 M3 볼트로 고정합니다.`);
+}
+// 직선 출력 → 랙·피니언 → 뒤 기구 입력. 틀 Fr: x = 움직임 방향 u, y = 이가 향하는 쪽 n, z = 피니언 축 w
+function asmRackLink(A, B, L, qa, lk, k, model, steps) {
+  const m = L.m || 1, zp = Math.max(10, Math.round(L.zB || 16)), bw = 6, gP = { m, z: zp, pa: 20, x: autoShift(zp), b: bw, backlash: 0.1 };
+  const r = m * zp / 2, cy = r + gP.x * m, u = V3.unit(xfDir(A.pose, qa.dir));
+  const w = Math.abs(u[2]) < 0.9 ? V3.unit(V3.sub([0, 0, 1], V3.mul(u, u[2]))) : V3.unit(V3.cross(u, xfDir(A.pose, [1, 0, 0]))), n = V3.cross(w, u);
+  const bb = boxXf(partBox(A.m.parts[qa.part]), A.pose), c = [0, 1, 2].map(i => (bb.lo[i] + bb.hi[i]) / 2), en = [0, 1, 2].reduce((a, i) => a + Math.abs(n[i]) * (bb.hi[i] - bb.lo[i]) / 2, 0);
+  const [lo, hi] = qa.of.range, p = PI * m, ra = r + m * (1 + gP.x), nR = Math.ceil((hi - lo) / p) + 2 * Math.ceil(ra / p) + 2;
+  const RO = rackOutline({ m, pa: 20, backlash: 0.1, nR, H: 5 }), sh = -Math.round((lo + hi) / 2 / p) * p;
+  const O = V3.sub(V3.add(c, V3.mul(n, en - RO.yb + 0.3)), V3.mul(w, bw / 2)), Fr = XF.basis(u, n, w, O);
+  const oP = XF.apply(Fr, [0, cy, bw]), g = 12, dB = B.pin.shaft ? B.pin.shaft.d : 5;
+  const R = alignRot(V3.unit(B.pin.dir), V3.mul(w, -1)), p0 = XF.apply(R, B.pin.at), tgt = V3.add(oP, V3.mul(w, g));
+  B.pose = XF.mul(XF.T(tgt[0] - p0[0], tgt[1] - p0[1], tgt[2] - p0[2]), R);
+  Object.assign(lk, { ok: true, wA: w, oA: oP, g, side: 0, plane: 0, dB, F: Fr, rack: { r, nR } });
+  lk.parts = [{ name: `랙 m${m} ${nR}T`, file: `link${k}_rack_m${m}_n${nR}`, tris: moveTris(extrudeTris(RO.pts, [], bw), sh, 0, 0), frame: Fr, slide: true },
+    { name: `피니언 ${zp}T`, file: `link${k}_pinion_m${m}_z${zp}`, tris: extrudeTris(gearOutline(gP).pts, [borePts(dB + 0.1, 0.5, 32)], bw), frame: XF.mul(Fr, XF.T(0, cy, 0)), spin: 'B', ph: -PI / 2 }];
+  const oB = XF.apply(B.pose, B.pin.at);
+  model.rods.push({ a: XF.apply(Fr, [0, cy, -1]), b: oB, d: dB });
+  const sw = (hi - lo) / r;
+  model.checks.push({ st: 'ok', txt: `${k}→${k + 1}번 랙·피니언: 모듈 ${m}, 피니언 ${zp}T(반지름 ${fmt(r, 1)} mm), 랙 ${nR}T · 행정 ${fmt(hi - lo, 1)} mm → 피니언 <em>±${fmt(sw / 2 / D2R, 0)}°</em> 왕복 회전` });
+  if (sw > 2 * PI) model.checks.push({ st: 'warn', txt: `${k + 1}번 입력이 한 행정에 한 바퀴 넘게(${fmt(sw / D2R, 0)}°) 돕니다. 왕복 회전이라 크랭크처럼 한 바퀴를 도는 기구는 되돌아 돕니다.` });
+  else model.checks.push({ st: 'warn', txt: `${k + 1}번 ${B.name}의 입력이 ${fmt(sw / D2R, 0)}°만 오가며 흔들립니다. 한 바퀴를 돌아야 하는 기구라면 피니언 잇수를 줄이거나 행정을 늘리세요.` });
+  steps.push(`${k}번 ${A.name}의 움직이는 부품 옆에 랙을 붙이고(접착·M3), ${k + 1}번 입력축에 ${zp}T 피니언을 끼워 랙에 물립니다.`);
 }
 function m0Period(m) { return m.period && isFinite(m.period) ? m.period : 1; }
 function boxXf(b, A) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -6828,13 +6860,17 @@ function renderAsm() {
   $('asmAddType').innerHTML = asmOpts(LK_TYPES.map(t => [t, LK_KO[t]]), 'slider');
   $('asmList').innerHTML = aD.mods.map((md, k) => {
     const d = md.design, L = asmLinkFix(md.link), outs = k ? asmPortsOf(k - 1) : [];
+    const qf = outs.find(q => q.id === (md.from || 'out')) || outs[0], lin = !!qf && qf.kind === 'lin';
+    L.kind = lin ? 'rack' : L.kind === 'rack' ? 'mesh' : L.kind;
+    const kinds = Object.entries(ASM_KINDS).filter(([v]) => lin ? v === 'rack' : v !== 'rack');
     const typeSel = d.kind === 'linkage' ? `<select data-k="${k}" data-f="type">${asmOpts(LK_TYPES.map(t => [t, LK_KO[t]]), d.type)}</select>` : `<b>${escH(asmName(d))}</b>`;
     const link = !k ? '<p class="hint" style="margin:0">동력원이 이 기구의 입력축을 돌립니다.</p>' : `<div class="grid2">
       <label class="f">앞 기구 출력<select data-k="${k}" data-f="from">${outs.length ? asmOpts(outs.map(q => [q.id, q.label || q.id]), md.from || 'out') : '<option value="out">출력축</option>'}</select></label>
-      <label class="f">이음<select data-k="${k}" data-f="kind">${asmOpts(Object.entries(ASM_KINDS), L.kind)}</select></label>
+      <label class="f">이음<select data-k="${k}" data-f="kind">${asmOpts(kinds, L.kind)}</select></label>
       ${L.kind === 'belt' ? `<label class="f">앞 풀리 잇수<select data-k="${k}" data-f="zA">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), L.zA)}</select></label><label class="f">뒤 풀리 잇수<select data-k="${k}" data-f="zB">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), L.zB)}</select></label>` : ''}
       ${L.kind === 'mesh' ? `<label class="f">앞 기어 잇수<input type="number" data-k="${k}" data-f="zA" value="${L.zA}" min="10" step="1"></label><label class="f">뒤 기어 잇수<input type="number" data-k="${k}" data-f="zB" value="${L.zB}" min="10" step="1"></label><label class="f">모듈<input type="number" data-k="${k}" data-f="m" value="${L.m}" min="0.5" step="0.25"></label>` : ''}
-      ${L.kind !== 'shaft' ? `<label class="f">놓는 방향<select data-k="${k}" data-f="ang">${asmOpts([['auto', '자동 (안 겹치게)'], ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => [a, a + '°'])], L.ang)}</select></label>` : ''}
+      ${L.kind === 'rack' ? `<label class="f">피니언 잇수<input type="number" data-k="${k}" data-f="zB" value="${L.zB}" min="10" step="1"></label><label class="f">모듈<input type="number" data-k="${k}" data-f="m" value="${L.m}" min="0.5" step="0.25"></label>` : ''}
+      ${L.kind !== 'shaft' && L.kind !== 'rack' ? `<label class="f">놓는 방향<select data-k="${k}" data-f="ang">${asmOpts([['auto', '자동 (안 겹치게)'], ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => [a, a + '°'])], L.ang)}</select></label>` : ''}
     </div>`;
     return `<div class="asmCard"><div class="row" style="align-items:center"><span class="pill">${k + 1}</span>${typeSel}<span style="flex:1"></span>
       <button class="btn" data-mv="${k}" data-d="-1"${k ? '' : ' disabled'}>위로</button><button class="btn" data-mv="${k}" data-d="1"${k < aD.mods.length - 1 ? '' : ' disabled'}>아래로</button><button class="btn" data-del="${k}"${aD.mods.length > 1 ? '' : ' disabled'}>빼기</button>

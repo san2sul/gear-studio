@@ -13,13 +13,17 @@ function renderAsm() {
   $('asmAddType').innerHTML = asmOpts(LK_TYPES.map(t => [t, LK_KO[t]]), 'slider');
   $('asmList').innerHTML = aD.mods.map((md, k) => {
     const d = md.design, L = asmLinkFix(md.link), outs = k ? asmPortsOf(k - 1) : [];
+    const qf = outs.find(q => q.id === (md.from || 'out')) || outs[0], lin = !!qf && qf.kind === 'lin';
+    L.kind = lin ? 'rack' : L.kind === 'rack' ? 'mesh' : L.kind;
+    const kinds = Object.entries(ASM_KINDS).filter(([v]) => lin ? v === 'rack' : v !== 'rack');
     const typeSel = d.kind === 'linkage' ? `<select data-k="${k}" data-f="type">${asmOpts(LK_TYPES.map(t => [t, LK_KO[t]]), d.type)}</select>` : `<b>${escH(asmName(d))}</b>`;
     const link = !k ? '<p class="hint" style="margin:0">동력원이 이 기구의 입력축을 돌립니다.</p>' : `<div class="grid2">
       <label class="f">앞 기구 출력<select data-k="${k}" data-f="from">${outs.length ? asmOpts(outs.map(q => [q.id, q.label || q.id]), md.from || 'out') : '<option value="out">출력축</option>'}</select></label>
-      <label class="f">이음<select data-k="${k}" data-f="kind">${asmOpts(Object.entries(ASM_KINDS), L.kind)}</select></label>
+      <label class="f">이음<select data-k="${k}" data-f="kind">${asmOpts(kinds, L.kind)}</select></label>
       ${L.kind === 'belt' ? `<label class="f">앞 풀리 잇수<select data-k="${k}" data-f="zA">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), L.zA)}</select></label><label class="f">뒤 풀리 잇수<select data-k="${k}" data-f="zB">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), L.zB)}</select></label>` : ''}
       ${L.kind === 'mesh' ? `<label class="f">앞 기어 잇수<input type="number" data-k="${k}" data-f="zA" value="${L.zA}" min="10" step="1"></label><label class="f">뒤 기어 잇수<input type="number" data-k="${k}" data-f="zB" value="${L.zB}" min="10" step="1"></label><label class="f">모듈<input type="number" data-k="${k}" data-f="m" value="${L.m}" min="0.5" step="0.25"></label>` : ''}
-      ${L.kind !== 'shaft' ? `<label class="f">놓는 방향<select data-k="${k}" data-f="ang">${asmOpts([['auto', '자동 (안 겹치게)'], ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => [a, a + '°'])], L.ang)}</select></label>` : ''}
+      ${L.kind === 'rack' ? `<label class="f">피니언 잇수<input type="number" data-k="${k}" data-f="zB" value="${L.zB}" min="10" step="1"></label><label class="f">모듈<input type="number" data-k="${k}" data-f="m" value="${L.m}" min="0.5" step="0.25"></label>` : ''}
+      ${L.kind !== 'shaft' && L.kind !== 'rack' ? `<label class="f">놓는 방향<select data-k="${k}" data-f="ang">${asmOpts([['auto', '자동 (안 겹치게)'], ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => [a, a + '°'])], L.ang)}</select></label>` : ''}
     </div>`;
     return `<div class="asmCard"><div class="row" style="align-items:center"><span class="pill">${k + 1}</span>${typeSel}<span style="flex:1"></span>
       <button class="btn" data-mv="${k}" data-d="-1"${k ? '' : ' disabled'}>위로</button><button class="btn" data-mv="${k}" data-d="1"${k < aD.mods.length - 1 ? '' : ' disabled'}>아래로</button><button class="btn" data-del="${k}"${aD.mods.length > 1 ? '' : ' disabled'}>빼기</button>

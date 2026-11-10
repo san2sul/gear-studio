@@ -99,7 +99,12 @@ function modelPorts(D, model) {
     const p = parts[q.part], T0 = p.motion(0);
     const smp = q.kind === 'rot' ? th => spinAbout(T0, p.motion(tOf(th)), q.dir) : th => { const T = p.motion(tOf(th)); return V3.dot([T[3] - T0[3], T[7] - T0[7], T[11] - T0[11]], q.dir); };
     smp.wrap = q.kind === 'rot';
-    q.of = periodicFn(smp);
+    if (q.kind === 'rot') q.of = periodicFn(smp);
+    else {   // 직선: 값을 바로 잼 (리드스크루처럼 여러 바퀴 뒤에 되돌아오는 것도 맞게). 범위는 기구 한 주기에서
+      const span = Math.min(400 * PI, Math.max(2 * PI, Math.abs(P.rate) * (isFinite(model.period) ? model.period : 0))), N = 720; let a = Infinity, b = -Infinity;
+      for (let i = 0; i <= N; i++) { const v = smp(span * i / N); a = Math.min(a, v); b = Math.max(b, v); }
+      q.of = smp; q.of.range = [a, b]; q.of.adv = 0;
+    }
   }
   return (model.ports = P);
 }

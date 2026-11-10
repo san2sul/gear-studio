@@ -52,4 +52,11 @@ for (const [kind, zA, zB] of [['shaft', 0, 0], ['mesh', 18, 27], ['belt', 16, 40
   const B = M.housing.filter(h => h.mod === -1); ok(B.some(h => /base_common/.test(h.file)), '조립: 공통 바탕판 없음');
   B.forEach(h => ok(openEdges(h.tris) === 0, `조립: ${h.file} 메시가 열려 있음`));
   const N = C.buildModel({ ...C.asmDefault(), base: false }); ok(!N.housing.some(h => /base_common/.test(h.file)), '조립: 바탕판 끄기'); }
+// 6. 직선 출력 → 랙·피니언
+for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
+  const M = C.buildModel({ kind: 'asm', mods: [{ design: lk(a, 'auto') }, { design: lk('fourbar'), link: { kind: 'belt', zB: z, m: 1 } }] });
+  ok(M.checks.some(c => /랙·피니언/.test(c.txt)) && !M.checks.some(c => c.st === 'bad'), `랙 ${a}: ${M.checks.filter(c => c.st === 'bad').map(c => c.txt).join(' / ')}`);
+  M.parts.filter(p => p.mod === -1).forEach(p => ok(openEdges(p.tris) === 0, `랙 ${a}: ${p.file} 메시가 열려 있음`));
+  const c = M.chain(0.7); ok(Math.abs(c.phi[1].b - c.phi[1].a * 2 / z) < 1e-9, `랙 ${a}: 비가 맞지 않음`);
+}
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);
