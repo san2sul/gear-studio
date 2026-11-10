@@ -152,6 +152,7 @@ function asmModel(D) {
     memoT = t; memo = { th, phi }; return memo;
   };
   model.chain = chain;
+  const ties = asmTies(mods, M, links, chain, model, addBom, steps);
   // 부품 합치기
   M.forEach((X, k) => {
     const rate = X.P.rate || 1, tag = `${k + 1}·`, pf = `m${k + 1}_`;
@@ -168,6 +169,8 @@ function asmModel(D) {
   // 이음 부품은 앞(A) 또는 뒤(B) 축과 함께 돎
   links.forEach(lk => (lk.parts || []).forEach(q => model.parts.push({ name: `이음 ${lk.src + 1}→${lk.k + 1}: ${q.name}`, file: q.file, tris: q.tris, mod: -1,
     motion: t => { const c = chain(t).phi[lk.k]; return q.slide ? XF.mul(q.frame, XF.T(c ? c.a : 0, 0, 0)) : XF.mul(q.frame, XF.Rz((q.ph || 0) + (c ? (q.spin === 'A' ? c.a : c.b) : 0))); } })));
+  ties.forEach(tk => tk.parts.forEach(q => model.parts.push({ name: `고리 ${tk.src + 1}→${tk.k + 1}: ${q.name}`, file: q.file, tris: q.tris, mod: -1,
+    motion: t => { const a = tk.qa.of(chain(t).th[tk.src]); return XF.mul(q.frame, XF.Rz(q.spin === 'A' ? a : a * tk.r)); } })));
   if (base) asmBase(M, model, addBom, steps);
   // 기구끼리 겹침 (처음 자세의 상자)
   const boxOf = k => { const ts = model.parts.filter(p => p.mod === k).map(p => xfTris(p.tris, p.motion(0))).concat(model.housing.filter(h => h.mod === k && h.assembly !== false).map(h => h.tris)); return trisBounds([].concat(...ts)); };
@@ -189,7 +192,8 @@ function asmModel(D) {
   leaves.forEach(k => { const rev = thAt(k, 2 * PI); if (rev === null) return;
     model.hud.push([`${k + 1}번 ${M[k].name} 입력`, Math.abs(rev) < 1e-6 ? '왕복 (제자리로 돌아옴)' : `입력 1바퀴에 ${fmt(Math.abs(rev) / (2 * PI), 3)}바퀴`]);
     if (leaves.length === 1) M[k].P.list.filter(q => q.role === 'out').forEach(q => { const f = q.of; model.hud.push([`끝 출력 ${q.label || q.id}`, q.kind === 'rot' ? `${fmt((f.range[1] - f.range[0]) / D2R, 0)}° 범위` : `${fmt(f.range[1] - f.range[0], 1)} mm 행정`]); }); });
-  model.table = { head: ['#', '기구', '이음', '출력'], rows: M.map((X, k) => ({ part: X.first, cells: [String(k + 1), X.name, k ? (links[k - 1].ok ? `${links[k - 1].src + 1}번에서 · ${ASM_KINDS[links[k - 1].L.kind]}` : '이어지지 않음') : '동력원', X.P.list.filter(q => q.role === 'out').map(q => q.label || q.id).join(', ') || '끝 동작'] })) };
+  if (ties.length) model.hud.push(['닫힌 고리', ties.map(tk => `${tk.src + 1}→${tk.k + 1}${tk.ok ? '' : ' 잠김'}`).join(', ')]);
+  model.table = { head: ['#', '기구', '이음', '출력'], rows: M.map((X, k) => ({ part: X.first, cells: [String(k + 1), X.name, (k ? (links[k - 1].ok ? `${links[k - 1].src + 1}번에서 · ${ASM_KINDS[links[k - 1].L.kind]}` : '이어지지 않음') : '동력원') + ties.filter(tk => tk.k === k).map(tk => ` + 고리 ${tk.src + 1}번`).join(''), X.P.list.filter(q => q.role === 'out').map(q => q.label || q.id).join(', ') || '끝 동작'] })) };
   model.bom = [...bom.values()]; model.steps = steps;
   model.kit = m0.kit; model.shaftRows = null;
   model.period = m0.period; model.thOf = m0.thOf;
@@ -225,6 +229,53 @@ function asmBase(M, model, addBom, steps) {
   if (tl.n > 1) steps.unshift(`바탕판 조각을 맞대어 놓고 아래에서 이음띠를 대어 M3 볼트·너트로 잇습니다.`);
   if (hung.length) model.checks.push({ st: 'warn', txt: `${hung.join(', ')}번 기구는 기울어지거나 뒤집혀 있어 바탕판 기둥으로 받치지 못합니다. 따로 받침(브래킷)이나 위쪽 틀에 고정하세요.` });
   steps.unshift(`공통 바탕판에 기둥을 M3 볼트로 세우고, 각 기구 바닥판 네 모서리를 기둥 위에 M3 볼트로 고정합니다.`);
+}
+/* 닫힌 고리: mods[k].tie = { src, from, zA, zB } 로 k 번 입력축을 src 번 출력축에 벨트로 한 번 더 이음.
+ 두 길(사슬과 고리)이 k 번 입력을 같은 각도로 돌려야 함. 다르면 잠김 → 맞는 풀리 잇수를 찾아 알려 줌 */
+function asmTies(mods, M, links, chain, model, addBom, steps) {
+  const ties = [], T0 = m0Period(M[0].m), N = 96;
+  mods.forEach((md, k) => {
+    const T = md.tie; if (!T || T.src === undefined || T.src === null || T.src === '') return;
+    const si = Math.round(+T.src); if (!(si >= 0 && si < M.length) || si === k) return;
+    const A = M[si], B = M[k], sn = si + 1, qa = A.P.list.find(q => q.id === (T.from || 'out') && q.role === 'out') || A.P.list.find(q => q.role === 'out');
+    const bad = txt => model.checks.push({ st: 'bad', txt: `닫힌 고리 ${sn}→${k + 1}번: ${txt}` });
+    if (!qa || qa.kind !== 'rot') return bad(`${sn}번 ${A.name}에 회전 출력축이 없습니다.`);
+    if (!B.pin) return bad(`${k + 1}번 입력축을 찾지 못했습니다.`);
+    const u = V3.unit(xfDir(A.pose, qa.dir)), oT = XF.apply(A.pose, qa.at), dw = V3.unit(xfDir(B.pose, B.pin.dir)), oB = XF.apply(B.pose, B.pin.at), par = V3.dot(u, dw);
+    if (Math.abs(par) < 0.999) return bad(`두 축이 나란하지 않아 벨트로 이을 수 없습니다 (사이각 ${fmt(Math.acos(Math.min(1, Math.abs(par))) / D2R, 0)}°). 놓는 방향을 바꾸거나 고리를 빼세요.`);
+    const zA = ASM_PULLEY.includes(+T.zA) ? +T.zA : 20, zB = ASM_PULLEY.includes(+T.zB) ? +T.zB : 20, r = zA / zB, sg = Math.sign(par);
+    // 두 길 비교: 고리로 돌린 각도 sg·a·r 와 사슬로 돌린 각도 th[k]
+    let err = 0, saa = 0, sab = 0; const sm = [];
+    for (let i = 0; i <= N; i++) { const c = chain(T0 * i / N), a = qa.of(c.th[si]), b = c.th[k]; sm.push([a, b]); err = Math.max(err, Math.abs(sg * a * r - b)); saa += a * a; sab += a * b; }
+    const tk = { k, src: si, qa, r, ok: err < 0.02, parts: [] }; ties.push(tk);
+    if (!tk.ok) {
+      const need = saa > 1e-9 ? sab / saa * sg : NaN, lin = isFinite(need) && sm.every(([a, b]) => Math.abs(sg * a * need - b) < 0.02);
+      let hint = '이 두 기구는 회전비가 일정하지 않아(간헐·왕복 운동) 고리로 이을 수 없습니다.';
+      if (lin && need > 0) { let best = null; for (const x of ASM_PULLEY) for (const y of ASM_PULLEY) { const e = Math.abs(x / y - need), w = Math.abs(x - zA) + Math.abs(y - zB); if (!best || e < best.e - 1e-9 || e < best.e + 1e-9 && w < best.w) best = { x, y, e, w }; }
+        hint = best.e < 1e-6 ? `풀리를 <em>${best.x}T:${best.y}T</em>로 바꾸면 맞습니다.` : `필요한 비 ${fmt(need, 3)}에 딱 맞는 GT2 풀리 짝이 없습니다 (가장 가까운 ${best.x}T:${best.y}T).`; }
+      else if (lin && need < 0) hint = '두 길의 도는 방향이 반대입니다. 사슬 쪽 이음 하나를 기어 물림↔벨트로 바꿔 방향을 뒤집으세요.';
+      return bad(`두 길로 돌리는 각도가 최대 ${fmt(err / D2R, 0)}° 어긋나 기구가 잠깁니다. ${hint}`);
+    }
+    // 벨트 자리: 앞 출력축 위로 층을 올려 (그 축의 이음·고리 수만큼)
+    const used = links.filter(o => o.ok && o.src === si && o.qa === qa).length + ties.filter(o => o !== tk && o.src === si && o.qa === qa).length;
+    const d = V3.sub(oB, oT), pp = V3.sub(d, V3.mul(u, V3.dot(d, u))), C = V3.len(pp), rA = zA * 2 / (2 * PI), rB = zB * 2 / (2 * PI);
+    if (C < rA + rB + 4) { tk.ok = false; return bad(`두 축 사이가 ${fmt(C, 1)} mm로 풀리(${zA}T·${zB}T)를 걸기에 너무 가깝습니다.`); }
+    const s = Math.max(0, sg > 0 ? V3.dot(d, u) : 0) + 10 + 18 * used, F = frameOf(V3.add(oT, V3.mul(u, s)), u, V3.unit(pp)), pz = 9.5;
+    const Ln = beltLen(C, rA, rB), Lb = ASM_BELTS.find(x => x >= Ln - 0.5) || Math.ceil(Ln / 2) * 2, slack = Lb - Ln;
+    const pA = STD.pulley.mk({ z: String(zA), d: qa.shaft ? qa.shaft.d : 5, dcut: 'dcut' })[0], pB = STD.pulley.mk({ z: String(zB), d: B.pin.shaft ? B.pin.shaft.d : 5, dcut: 'dcut' })[0];
+    tk.parts = [{ name: `GT2 풀리 ${zA}T`, file: `tie${k + 1}_pulley_${zA}T`, tris: pA.tris, frame: XF.mul(F, XF.T(0, 0, -pz)), spin: 'A' },
+      { name: `GT2 풀리 ${zB}T`, file: `tie${k + 1}_pulley_${zB}T`, tris: pB.tris, frame: XF.mul(F, XF.T(C, 0, -pz)), spin: 'B' }];
+    model.extras.push({ line: beltLoop(C, rA + 0.6, rB + 0.6).map(p => XF.apply(F, p)), color: '#7a5bc9' });
+    const top = V3.add(oT, V3.mul(u, s + 6));
+    model.rods.push({ a: oT, b: top, d: qa.shaft ? qa.shaft.d : 5 }, { a: oB, b: V3.add(oB, V3.mul(u, V3.dot(V3.sub(top, oB), u))), d: B.pin.shaft ? B.pin.shaft.d : 5 });
+    addBom(`GT2 풀리 ${zA}T`, 1, '닫힌 고리'); addBom(`GT2 풀리 ${zB}T`, 1, '닫힌 고리'); addBom(`GT2 폐루프 벨트 ${Lb} mm (폭 6)`, 1, '닫힌 고리');
+    if (slack > 1) addBom('GT2 아이들러 풀리 20T (구멍 5) + M5 볼트', 1, '닫힌 고리 벨트 장력');
+    model.checks.push({ st: 'ok', txt: `닫힌 고리 ${sn}→${k + 1}번: 두 길의 각도가 맞습니다 (어긋남 ${fmt(err / D2R, 2)}°). GT2 ${zA}T:${zB}T, 축 사이 ${fmt(C, 1)} mm, 벨트 <em>${Lb} mm</em>${slack > 1 ? ` · ${fmt(slack, 1)} mm 남아 아이들러로 장력을 줍니다` : ''}. 부하는 두 길이 나눠 받습니다.` });
+    if (slack > 20) model.checks.push({ st: 'warn', txt: `닫힌 고리 ${sn}→${k + 1}번: 벨트가 ${fmt(slack, 0)} mm나 남아 아이들러를 크게 밀어야 합니다. 풀리 잇수를 바꾸거나(비는 같게) 기구 놓는 방향을 바꿔 축 사이를 늘리세요.` });
+    if (sg < 0) model.checks.push({ st: 'warn', txt: `닫힌 고리 ${sn}→${k + 1}번: ${k + 1}번 입력축이 반대쪽을 향해 있어 기구를 꿰뚫는 관통 축(양쪽으로 나온 축)이 필요합니다.` });
+    steps.push(`닫힌 고리: ${sn}번 출력축과 ${k + 1}번 입력축에 GT2 풀리(${zA}T, ${zB}T)를 같은 높이로 끼우고, 기구를 처음 자세에 둔 채 ${Lb} mm 벨트를 겁니다${slack > 1 ? ' (아이들러로 장력)' : ''}.`);
+  });
+  return ties;
 }
 // 바탕판을 출력판에 들어가게 조각으로 나눔. 이음선 아래에 이음띠를 대고 양쪽을 M3 볼트로 조임 (이음선은 다리 구멍을 피해 옮김)
 function asmPlateTiles(x0, y0, x1, y1, feet, T, zTop) {

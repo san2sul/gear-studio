@@ -27,9 +27,14 @@ function renderAsm() {
       ${L.kind === 'rack' ? `<label class="f">피니언 잇수<input type="number" data-k="${k}" data-f="zB" value="${L.zB}" min="10" step="1"></label><label class="f">모듈<input type="number" data-k="${k}" data-f="m" value="${L.m}" min="0.5" step="0.25"></label>` : ''}
       ${L.kind !== 'shaft' && L.kind !== 'rack' ? `<label class="f">놓는 방향<select data-k="${k}" data-f="ang">${asmOpts([['auto', '자동 (안 겹치게)'], ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => [a, a + '°'])], L.ang)}</select></label>` : ''}
     </div>`;
+    const T = md.tie || null, tieOpts = [['', '없음'], ...aD.mods.map((m, i) => [i, `${i + 1}번 ${asmName(m.design)}의 출력에서`]).filter(([i]) => i !== k && asmPortsOf(i).some(q => q.kind === 'rot'))];
+    const tie = !k ? '' : `<div class="grid2" style="margin-top:6px">
+      <label class="f">닫힌 고리 (입력축을 한 번 더 벨트로)<select data-k="${k}" data-f="tieSrc">${asmOpts(tieOpts, T ? T.src : '')}</select></label>
+      ${T ? `<label class="f">고리 앞 풀리<select data-k="${k}" data-f="tieZA">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), T.zA || 20)}</select></label><label class="f">고리 뒤 풀리<select data-k="${k}" data-f="tieZB">${asmOpts(ASM_PULLEY.map(z => [z, z + 'T']), T.zB || 20)}</select></label>` : ''}
+    </div>`;
     return `<div class="asmCard"><div class="row" style="align-items:center"><span class="pill">${k + 1}</span>${typeSel}<span style="flex:1"></span>
       <button class="btn" data-mv="${k}" data-d="-1"${k ? '' : ' disabled'}>위로</button><button class="btn" data-mv="${k}" data-d="1"${k < aD.mods.length - 1 ? '' : ' disabled'}>아래로</button><button class="btn" data-del="${k}"${aD.mods.length > 1 ? '' : ' disabled'}>빼기</button>
-      <button class="btn" data-edit="${k}"${d.kind === 'linkage' ? '' : ' disabled'}>치수 다듬기</button></div>${link}</div>`;
+      <button class="btn" data-edit="${k}"${d.kind === 'linkage' ? '' : ' disabled'}>치수 다듬기</button></div>${link}${tie}</div>`;
   }).join('');
 }
 function asmRebuild(delay = 0, refit = false) {
@@ -50,7 +55,7 @@ $('asmBase').onchange = () => { aD.base = $('asmBase').checked; asmRebuild(); };
 $('asmReset').onclick = () => { aD = asmDefault(); asmRebuild(0, true); };
 $('asmList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.del) { const j = +b.dataset.del; aD.mods.forEach((m, i) => { if (i <= j || m.src === undefined) return; if (m.src === j) delete m.src; else if (m.src > j) m.src--; }); aD.mods.splice(j, 1); if (aD.mods[0]) delete aD.mods[0].link; asmRebuild(0, true); }
+  if (b.dataset.del) { const j = +b.dataset.del; aD.mods.forEach((m, i) => { if (m.tie) { if (m.tie.src === j) delete m.tie; else if (m.tie.src > j) m.tie.src--; } if (i <= j || m.src === undefined) return; if (m.src === j) delete m.src; else if (m.src > j) m.src--; }); aD.mods.splice(j, 1); if (aD.mods[0]) delete aD.mods[0].link; asmRebuild(0, true); }
   else if (b.dataset.mv) { const k = +b.dataset.mv, j = k + +b.dataset.d, A = aD.mods; [A[k].design, A[j].design] = [A[j].design, A[k].design];
     const d0 = A.find(m => m.design.drive && m.design.drive.motor !== 'none'); const mo = d0 ? d0.design.drive.motor : 'none';
     A.forEach((m, i) => { if (m.design.drive) m.design.drive.motor = i ? 'none' : mo; }); asmRebuild(0, true); }
@@ -62,6 +67,8 @@ $('asmList').addEventListener('change', e => {
   if (f === 'type') { md.design.type = el.value; }
   else if (f === 'from') md.from = el.value;
   else if (f === 'src') { md.src = +el.value; md.from = 'out'; }
+  else if (f === 'tieSrc') { if (el.value === '') delete md.tie; else md.tie = { zA: 20, zB: 20, ...(md.tie || {}), src: +el.value, from: 'out' }; }
+  else if (f === 'tieZA' || f === 'tieZB') { md.tie = md.tie || { src: 0 }; md.tie[f === 'tieZA' ? 'zA' : 'zB'] = +el.value; }
   else { md.link = asmLinkFix(md.link); md.link[f] = f === 'kind' || (f === 'ang' && el.value === 'auto') ? el.value : +el.value;
     if (f === 'kind' && el.value === 'belt') { md.link.zA = ASM_PULLEY.includes(md.link.zA) ? md.link.zA : 20; md.link.zB = ASM_PULLEY.includes(md.link.zB) ? md.link.zB : 20; } }
   asmRebuild(0, f === 'type' || f === 'kind' || f === 'src');

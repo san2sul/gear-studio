@@ -84,4 +84,12 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(!M.checks.some(c => /출력판\(220×220 mm\)보다 큰 부품/.test(c.txt)), '크기: 나눈 뒤에도 판보다 큰 부품');
   const W = C.buildModel({ kind: 'asm', mods: [{ design: lk('geneva', 'auto') }, { design: lk('fourbar'), link: { kind: 'mesh', zA: 30, zB: 30, m: 0.4 } }] });
   ok(W.checks.some(c => c.st === 'warn' && /모듈 0.4/.test(c.txt)), '크기: 작은 모듈 경고 없음'); }
+// 9. 닫힌 고리: 맞는 비면 통과하고 고리 풀리가 함께 돌며, 틀린 비면 잠김 + 맞는 잇수를 알려 줌
+{ const mk = tie => ({ kind: 'asm', mods: [{ design: lk('diff', 'auto') }, { design: lk('conveyor'), link: { kind: 'belt', zA: 20, zB: 40 } }, { design: lk('conveyor'), src: 0, from: 'out2', link: { kind: 'belt', zA: 20, zB: 20 }, tie }] });
+  const G = C.buildModel(mk({ src: 1, zA: 40, zB: 20 }));
+  ok(G.checks.some(c => c.st === 'ok' && /닫힌 고리 2→3번: 두 길의 각도가 맞습니다/.test(c.txt)) && !G.checks.some(c => c.st === 'bad'), `고리: ${G.checks.filter(c => c.st === 'bad').map(c => c.txt).join(' / ')}`);
+  const P = G.parts.filter(p => /^고리/.test(p.name)); ok(P.length === 2, '고리: 풀리 없음');
+  P.forEach(p => ok(openEdges(p.tris) === 0, `고리: ${p.file} 메시가 열려 있음`));
+  const B = C.buildModel(mk({ src: 1, zA: 20, zB: 20 }));
+  ok(B.checks.some(c => c.st === 'bad' && /잠깁니다/.test(c.txt) && /40T:20T/.test(c.txt)), '고리: 잠김·잇수 안내 없음'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);
