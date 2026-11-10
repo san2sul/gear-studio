@@ -92,4 +92,13 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   P.forEach(p => ok(openEdges(p.tris) === 0, `고리: ${p.file} 메시가 열려 있음`));
   const B = C.buildModel(mk({ src: 1, zA: 20, zB: 20 }));
   ok(B.checks.some(c => c.st === 'bad' && /잠깁니다/.test(c.txt) && /40T:20T/.test(c.txt)), '고리: 잠김·잇수 안내 없음'); }
+// 10. 프린터 보정: 시험편 메시가 닫혀 있고, 보정하면 구멍은 커지고 바깥은 작아지며, 끄면 원래대로
+{ const T = C.fitCoupon(); ok(T.length === 10, '보정: 시험편 개수'); T.forEach(p => ok(openEdges(p.tris) === 0, `보정: ${p.name} 메시가 열려 있음`));
+  const blk = () => C.extrudeTris([[0, 0], [20, 0], [20, 20], [0, 20]], [Array.from({ length: 64 }, (_, i) => [10 + 5 * Math.cos(i * Math.PI / 32), 10 + 5 * Math.sin(i * Math.PI / 32)])], 6);
+  const span = (t, f) => { let lo = 1e9, hi = -1e9; t.forEach(q => { for (let j = 0; j < 9; j += 3) if (f(q[j], q[j + 1])) { lo = Math.min(lo, q[j]); hi = Math.max(hi, q[j]); } }); return hi - lo; };
+  const inner = (x, y) => Math.hypot(x - 10, y - 10) < 7, outer = (x, y) => !inner(x, y);
+  const a = blk(); C.fitSet({ outer: 0.1, hole: 0.15, backlash: 0.1 }); const b = blk(), g1 = C.gearOutline({ m: 1, z: 20, pa: 20, x: 0, backlash: 0 }).pts; C.fitSet({});
+  const g0 = C.gearOutline({ m: 1, z: 20, pa: 20, x: 0, backlash: 0 }).pts, ar = P => Math.abs(P.reduce((s, p, i) => { const q = P[(i + 1) % P.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2);
+  ok(Math.abs(span(b, outer) - (span(a, outer) - 0.2)) < 0.02, '보정: 바깥이 줄지 않음'); ok(Math.abs(span(b, inner) - (span(a, inner) + 0.3)) < 0.03, '보정: 구멍이 커지지 않음');
+  ok(ar(g1) < ar(g0) - 0.5, '보정: 기어 백래시가 더해지지 않음'); ok(Math.abs(span(blk(), outer) - span(a, outer)) < 1e-9, '보정: 끈 뒤 원래대로가 아님'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

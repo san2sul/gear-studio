@@ -46,8 +46,42 @@ function stlBinary(tris, name = 'gear') {
   return new Uint8Array(buf);
 }
 
-// 2D 다각형(구멍 포함) 압출 → 삼각형. tri2d: 외곽+구멍 삼각분할 함수 주입
+/* 프린터 보정 (프린터 보정 탭에서 시험편을 재어 정함, 기본은 0)
+ outer: 바깥 테두리를 안쪽으로 줄이는 양(mm, 넘쳐 나오는 만큼), hole: 구멍을 키우는 양(mm, 반지름), backlash: 모든 기어 백래시에 더하는 양(mm) */
+const FIT = { outer: 0, hole: 0, backlash: 0 };
+function fitSet(f) { const c = (v, a, b) => Math.min(b, Math.max(a, +v || 0)); FIT.outer = c(f && f.outer, -0.3, 0.3); FIT.hole = c(f && f.hole, -0.3, 0.3); FIT.backlash = c(f && f.backlash, 0, 0.4); return FIT; }
+function fitZero(fn) { const s = { ...FIT }; fitSet({}); try { return fn(); } finally { fitSet(s); } }
+const fitOn = () => !!(FIT.outer || FIT.hole || FIT.backlash);
+// 다각형을 안쪽(+d)·바깥쪽(−d)으로 옮김. 짧은 변에서 생기는 작은 꼬임(변 방향이 뒤집힌 곳)은 걷어 냄
+function fitOffset(P, d) {
+  if (!d || !P || P.length < 3) return P;
+  const ar = p => p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2;
+  let Q = P.filter((p, i) => { const q = P[(i + 1) % P.length]; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-4; });
+  if (ar(Q) < 0) Q = Q.slice().reverse();
+  let R = offsetPoly(Q, d), O = Q;
+  for (let it = 0; it < 20; it++) {
+    const n = R.length, bad = []; if (n < 3) return P;
+    for (let i = 0; i < n; i++) { const j = (i + 1) % n, e1 = [R[j][0] - R[i][0], R[j][1] - R[i][1]], e0 = [O[j][0] - O[i][0], O[j][1] - O[i][1]]; if (e1[0] * e0[0] + e1[1] * e0[1] <= 0) bad.push(i); }
+    if (!bad.length) break;
+    const drop = new Set(); bad.forEach(i => { const j = (i + 1) % n; if (drop.has(i)) return; R[i] = [(R[i][0] + R[j][0]) / 2, (R[i][1] + R[j][1]) / 2]; drop.add(j); });
+    R = R.filter((_, i) => !drop.has(i)); O = O.filter((_, i) => !drop.has(i));
+  }
+  return R.length >= 3 && ar(R) > 0 ? R : P;
+}
+// 두 다각형 꼭짓점-변 사이 가장 짧은 거리 (대략)
+function polyGap(A, B) {
+  const ds = (p, a, b) => { const vx = b[0] - a[0], vy = b[1] - a[1], l = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l)); return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy); };
+  let m = Infinity; for (const p of A) for (let i = 0; i < B.length; i++) m = Math.min(m, ds(p, B[i], B[(i + 1) % B.length]));
+  for (const p of B) for (let i = 0; i < A.length; i++) m = Math.min(m, ds(p, A[i], A[(i + 1) % A.length]));
+  return m;
+}
+// 2D 다각형(구멍 포함) 압출 → 삼각형. tri2d: 외곽+구멍 삼각분할 함수 주입. 프린터 보정(FIT)이 있으면 테두리·구멍을 옮겨 깎음
 function extrudeTris(outer, holes, h, tri2d = TRI2D) {
+  if (FIT.outer || FIT.hole) { const o0 = outer; outer = fitOffset(outer, FIT.outer);
+    // 구멍은 테두리와 다른 구멍에서 0.4 mm 넘게 떨어져 있도록 키우는 양을 줄임
+    if (FIT.hole) holes = holes.map((H, i) => { if (!H || H.length < 3) return H; const room = Math.min(polyGap(H, outer), ...holes.filter((G, j) => j !== i && G && G.length > 2).map(G => polyGap(H, G) / 2)) - 0.4;
+      const h = FIT.hole > 0 ? Math.min(FIT.hole, Math.max(0, room)) : FIT.hole; return h ? fitOffset(H, -h) : H; });
+    if (!outer) outer = o0; }
   const area = p => p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2;
   if (area(outer) < 0) outer = outer.slice().reverse();
   holes = holes.map(H => area(H) > 0 ? H.slice().reverse() : H);

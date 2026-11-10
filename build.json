@@ -41,6 +41,7 @@
     "src/ui/finder.js",
     "src/ui/linkage.js",
     "src/ui/assembly.js",
+    "src/ui/fit.js",
     "src/ui/shape-editor.js"
   ]
 }

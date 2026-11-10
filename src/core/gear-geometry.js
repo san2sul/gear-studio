@@ -69,6 +69,7 @@ function toothPolar(g, res = 12) {
 
 // 2D 외곽선 (반시계), 0번 이의 중심이 +X 방향
 function gearOutline(g, res = 12) {
+  if (typeof FIT !== 'undefined' && FIT.backlash) g = { ...g, backlash: (g.backlash || 0) + FIT.backlash };
   const { tooth, info } = toothPolar(g, res), pts = [], step = 2 * PI / g.z;
   for (let k = 0; k < g.z; k++) for (const [rr, t] of tooth) pts.push([rr * Math.cos(t + k * step), rr * Math.sin(t + k * step)]);
   return { pts, info };

@@ -15,7 +15,37 @@
       <button role="tab" id="tabFind" aria-selected="false">동작으로 찾기</button>
       <button role="tab" id="tabStd" aria-selected="false">규격 부품</button>
       <button role="tab" id="tabAsm" aria-selected="false">조립 작업대</button>
+      <button role="tab" id="tabFit" aria-selected="false">프린터 보정</button>
     </div>
+
+    <!-- 프린터 보정 -->
+    <section id="paneFit" style="display:none;flex-direction:column;gap:14px">
+      <p class="hint">프린터마다 구멍은 작게, 바깥은 크게 나옵니다. 시험편을 한 번 뽑아 재면 그 값으로 앱이 만드는 모든 부품(테두리·구멍·기어 이)을 보정합니다. 값은 이 브라우저에 저장됩니다.</p>
+      <fieldset>
+        <legend>1. 시험편 뽑기</legend>
+        <p class="hint">치수 블록(20×20 mm, 구멍 10 mm)과 기어 맞물림 판(m1 16T 네 쌍, 백래시 0·0.1·0.2·0.3 mm)입니다. 평소 설정 그대로, 슬라이서 수평 확장은 0으로 뽑으세요.</p>
+        <div class="row"><button class="btn primary" id="fitDl">보정 시험편 받기 (ZIP)</button></div>
+      </fieldset>
+      <fieldset>
+        <legend>2. 잰 값 넣기</legend>
+        <div class="grid2">
+          <label class="f">블록 바깥 한 변 <span class="u">mm (설계 20)</span><input type="number" id="fitMB" step="0.01" placeholder="예: 20.12"></label>
+          <label class="f">블록 구멍 지름 <span class="u">mm (설계 10)</span><input type="number" id="fitMH" step="0.01" placeholder="예: 9.80"></label>
+          <label class="f">부드럽게 도는 기어 쌍<select id="fitMG"><option value="">아직 안 해 봄</option><option value="0">점 1개 (백래시 0)</option><option value="1">점 2개 (0.1 mm)</option><option value="2">점 3개 (0.2 mm)</option><option value="3">점 4개 (0.3 mm)</option></select></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>3. 보정량</legend>
+        <div class="grid2">
+          <label class="f">바깥 줄이기 <span class="u">mm, 한쪽</span><input type="number" id="fitOuter" step="0.01" min="-0.3" max="0.3" value="0"></label>
+          <label class="f">구멍 키우기 <span class="u">mm, 반지름</span><input type="number" id="fitHole" step="0.01" min="-0.3" max="0.3" value="0"></label>
+          <label class="f">기어 백래시 더하기 <span class="u">mm</span><input type="number" id="fitBl" step="0.05" min="0" max="0.4" value="0"></label>
+        </div>
+        <p class="hint" id="fitNow"></p>
+        <div class="row"><button class="btn primary" id="fitGo">적용</button><button class="btn" id="fitReset">보정 없애기</button></div>
+        <p class="hint">잰 값을 넣으면 보정량이 저절로 채워집니다. 바깥이 0.12 mm 크게 나오면 한쪽 0.06 mm를 줄이고, 구멍이 0.2 mm 작게 나오면 반지름을 0.1 mm 키웁니다. 각각 ±0.3 mm까지입니다.</p>
+      </fieldset>
+    </section>
 
     <!-- 조립 작업대 -->
     <section id="paneAsm" style="display:none;flex-direction:column;gap:14px">

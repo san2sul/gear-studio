@@ -94,6 +94,7 @@ function readme(overflow) {
   L.push('- parts/*.stl : 부품별 STL (출력하기 좋은 방향, 바닥 z=0). 같은 축의 복합 기어는 한 덩어리입니다. 같은 부품이 여러 개면(유성기어) 개수만큼 출력하세요.');
   L.push('- print_plate_gears.stl : 기어 부품을 220×220 mm 판에 배치한 STL' + (overflow ? ' (판을 넘으므로 부품별 STL로 나눠 출력하세요)' : ''));
   L.push('- assembly.stl : 조립 상태(맞물린 위치) 확인용');
+  if (fitOn()) L.push(`- 프린터 보정이 적용된 STL입니다: 바깥 ${FIT.outer > 0 ? '−' : '+'}${fmt(Math.abs(FIT.outer), 2)}, 구멍 +${fmt(FIT.hole, 2)}, 기어 백래시 +${fmt(FIT.backlash, 2)} mm. 같은 프린터·재료로 뽑으세요.`);
   L.push('- assembly_exploded.stl : 분해 조립도. 부품을 끼우는 순서(높이 순)대로 위아래로 벌려 놓았습니다.');
   if (model.kind === 'cycloid') L.push('- housing/ : 바닥판·바깥 벽·링 핀이 한 몸인 하우징. 입력축은 바닥 구멍으로 들어가 편심축(D컷)을 돌리고, 출력축은 출력판(D컷)에 끼웁니다.');
   else if (model.kind === 'linkage') L.push('- housing/ : 바닥판, ' + (design.type === 'slider' ? '슬라이더 안내 레일' : '흔들이 피벗 기둥') + ', 핀(pin_*). 레일·기둥은 바닥판에 붙여(접착 또는 함께 출력) 씁니다.');

@@ -576,6 +576,22 @@ function outHubTris(d) {
   return extrudeTris(circlePts(rh, 48), [borePts(d + 0.1, 0.5)], 9).concat(moveTris(extrudeTris(circlePts(rf, 64), [circlePts(rh - 1, 40)].concat(holes), 3), 0, 0, 6));
 }
 // 공차 시험편: 왼쪽부터 고정 핀 구멍, 회전 구멍, 하우징 구멍, D컷 구멍, 베어링 구멍 +0.10/+0.15/+0.20
+/* 프린터 보정 시험편: 치수 블록(20×20, 구멍 10) + 기어 맞물림 판(m1 16T 네 쌍, 백래시 0·0.1·0.2·0.3 = 점 1~4개) */
+const FIT_BL = [0, 0.1, 0.2, 0.3];
+function fitCoupon() {
+  return fitZero(() => {
+    const out = [{ name: 'fit_block_20x20_hole10', tris: extrudeTris(rectPts(0, 0, 20, 20), [circlePts(5, 64, 10, 10)], 6) }];
+    const rowY = k => 12 + 24 * k, pins = [], dots = [];
+    FIT_BL.forEach((b, k) => { pins.push([12, rowY(k)], [28, rowY(k)]); for (let i = 0; i <= k; i++) dots.push(circlePts(1, 16, 41, rowY(k) - 4.5 + 3 * i)); });
+    const T = 3, plate = extrudeTris(rectPts(0, 0, 46, 24 * FIT_BL.length), dots, T);
+    out.push({ name: 'fit_gear_base', tris: plate.concat(...pins.map(([x, y]) => moveTris(extrudeTris(circlePts(2.3, 32, x, y), [], 9), 0, 0, T - 0.01))) });
+    FIT_BL.forEach((b, k) => { const g = { m: 1, z: 16, pa: 20, x: 0, backlash: b }, web = [];
+      for (let i = 0; i <= k; i++) { const a = 2 * PI * i / (k + 1); web.push(circlePts(0.8, 16, 4.6 * Math.cos(a), 4.6 * Math.sin(a))); }
+      const t = extrudeTris(gearOutline(g).pts, [circlePts(2.6, 32), ...web], 5);
+      out.push({ name: `fit_gear_${k + 1}dot_bl${b}_a`, tris: t }, { name: `fit_gear_${k + 1}dot_bl${b}_b`, tris: t }); });
+    return out;
+  });
+}
 function fitTestTris(d, OD) {
   const xs = [], hs = [], gap = 3; let x = 4;
   const add = (pts, r) => { x += r; hs.push(pts.map(([a, b]) => [a + x, b + 8])); x += r + gap; };

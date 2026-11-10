@@ -187,6 +187,7 @@ function buildModel(D, opt = {}) {
   const m = buildModel0(D);
   if (D.drive && ['gearbox', 'bevel', 'planetary'].includes(D.kind)) driveAttach(D, m);
   if (!opt.sub) sizeRules(D, m);
+  if (!opt.sub && fitOn() && m.checks) m.checks.push({ st: 'ok', txt: `프린터 보정 적용 중: 바깥 ${FIT.outer > 0 ? '−' : '+'}${fmt(Math.abs(FIT.outer), 2)}, 구멍 ${FIT.hole >= 0 ? '+' : '−'}${fmt(Math.abs(FIT.hole), 2)}, 기어 백래시 +${fmt(FIT.backlash, 2)} mm` });
   return m;
 }
 /* ---- 크기별 규칙 ----
