@@ -47,5 +47,9 @@ for (const [kind, zA, zB] of [['shaft', 0, 0], ['mesh', 18, 27], ['belt', 16, 40
   ok(Math.abs(b - a * r) < 1e-6, `조립 ${kind}: 비가 맞지 않음 ${a} ${b}`);
   ok(M.bom.length > 0 && M.parts.length > 5, `조립 ${kind}: 부품표·부품 없음`);
 }
-{ const M = C.buildModel(C.asmDefault()); ok(M.kind === 'asm' && M.table.rows.length === 2, '조립 기본값'); }
+{ const M = C.buildModel(C.asmDefault()); ok(M.kind === 'asm' && M.table.rows.length === 2, '조립 기본값');
+  ok(M.loads.req[0] > M.loads.own[0] && M.checks.some(c => /동력원이 감당할/.test(c.txt)), '조립: 뒤 기구 부하가 1번에 더해지지 않음');
+  const B = M.housing.filter(h => h.mod === -1); ok(B.some(h => /base_common/.test(h.file)), '조립: 공통 바탕판 없음');
+  B.forEach(h => ok(openEdges(h.tris) === 0, `조립: ${h.file} 메시가 열려 있음`));
+  const N = C.buildModel({ ...C.asmDefault(), base: false }); ok(!N.housing.some(h => /base_common/.test(h.file)), '조립: 바탕판 끄기'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

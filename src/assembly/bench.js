@@ -3,6 +3,7 @@
  첫 기구가 동력원을 받고, 다음 기구는 앞 기구의 출력 포트(from)에 이음(link)으로 이어짐. link.ang 는 옆으로 놓는 방향(°)
  모듈 k 의 입력 각도 θk 를 차례로 구하고, 그 기구의 시간 t = θk / rate 로 움직임을 돌림 */
 const ASM_KINDS = { shaft: '축 직결 (커플링)', mesh: '기어 물림', belt: '벨트 (GT2)' };
+const ASM_ETA = { shaft: 0.98, mesh: 0.95, belt: 0.95 };
 const ASM_PULLEY = [16, 20, 24, 30, 36, 40, 60];
 const ASM_BELTS = [100, 110, 122, 140, 158, 200, 232, 280, 300, 400, 500, 610, 852, 1000];
 function asmDefault() {
@@ -41,14 +42,28 @@ function asmModel(D) {
   if (!mods.length) throw new Error('기구가 없습니다');
   const M = [], bom = new Map(), addBom = (n, c, note = '') => { const k = n + '|' + note; const o = bom.get(k) || [n, 0, note]; o[1] += c; bom.set(k, o); };
   const rows = [], steps = [], links = [];
-  mods.forEach((md, k) => {
-    const d = JSON.parse(JSON.stringify(md.design));
-    if (k > 0 && d.drive) { d.drive.motor = 'none'; }
-    let m; try { m = buildModel(d); } catch (e) { throw new Error(`${k + 1}번 기구를 만들 수 없습니다: ${e && e.message || e}`); }
+  const mk = (d, k) => { let m; try { m = buildModel(d); } catch (e) { throw new Error(`${k + 1}번 기구를 만들 수 없습니다: ${e && e.message || e}`); }
     const P = modelPorts(d, m), pin = P.list.find(q => q.role === 'in');
     const lb = trisBounds([].concat(...m.parts.map(p => xfTris(p.tris, p.motion(0))), ...m.housing.filter(h => h.assembly !== false).map(h => h.tris)));
-    M.push({ d, m, P, pin, pose: XF.I(), name: asmName(d), lb });
-  });
+    return { d, m, P, pin, pose: XF.I(), name: asmName(d), lb }; };
+  const drv0 = mods[0].design.drive ? mods[0].design.drive.motor : 'none';
+  const base = D.base !== false;
+  mods.forEach((md, k) => { const d = JSON.parse(JSON.stringify(md.design)); if (d.drive) { d.drive.motor = 'none'; delete d.drive.extraT; } if (d.kind === 'linkage') d.cornerHoles = base; M.push(mk(d, k)); });
+  // 부하 거슬러 계산: 뒤 기구 입력에 필요한 토크 × 최대 속도비 ÷ 이음 효율 을 앞 기구 출력에 더함 (N·mm, 한 바퀴 중 최댓값끼리 더해 안전 쪽)
+  const own = X => X.d.kind === 'linkage' ? (v => isFinite(v) ? v : 0)(linkLoadT(X.d, linkMotion(X.d, 180))) : 0;
+  const portOf = k => { const L = mods[k] || {}; return M[k - 1].P.list.find(q => q.id === (L.from || 'out') && q.role === 'out') || M[k - 1].P.list.find(q => q.role === 'out'); };
+  const req = new Array(M.length).fill(0), gain = new Array(M.length).fill(0);
+  for (let k = M.length - 1; k >= 0; k--) {
+    req[k] = own(M[k]);
+    if (k + 1 < M.length) { const q = portOf(k + 1), L = asmLinkFix(mods[k + 1].link);
+      if (q && q.kind === 'rot') { let g = 0; for (let i = 0; i < 360; i++) g = Math.max(g, Math.abs(q.of((i + 1) * PI / 180) - q.of(i * PI / 180)) / (PI / 180));
+        const r = L.kind === 'shaft' ? 1 : L.zA / L.zB; gain[k] = g * r / ASM_ETA[L.kind]; req[k] += req[k + 1] * gain[k]; } }
+  }
+  model.loads = { own: M.map(own), req, gain };
+  if (drv0 !== 'none' && mods[0].design.drive) {   // 1번 기구에 뒤 기구들의 부하를 얹어 모터를 다시 고름
+    const d = JSON.parse(JSON.stringify(mods[0].design)); d.drive.motor = drv0; if (d.kind === 'linkage') d.cornerHoles = base; d.drive.extraT = req[0] - model.loads.own[0]; M[0] = mk(d, 0);
+  }
+  if (M.length > 1) model.checks.push({ st: 'ok', txt: `동력원이 감당할 입력 토크(한 바퀴 중 최대): 1번 자체 ${fmt(model.loads.own[0] / 10, 2)} + 뒤 기구들 ${fmt((req[0] - model.loads.own[0]) / 10, 2)} = <em>${fmt(req[0] / 10, 2)} N·cm</em>` });
   // 자세 맞춤과 이음 부품
   for (let k = 1; k < M.length; k++) {
     const A = M[k - 1], B = M[k], L = asmLinkFix(mods[k].link), qa = A.P.list.find(q => q.id === (mods[k].from || 'out') && q.role === 'out') || A.P.list.find(q => q.role === 'out');
@@ -142,6 +157,7 @@ function asmModel(D) {
   // 이음 부품은 앞(A) 또는 뒤(B) 축과 함께 돎
   links.forEach(lk => (lk.parts || []).forEach(q => model.parts.push({ name: `이음 ${lk.k}→${lk.k + 1}: ${q.name}`, file: q.file, tris: q.tris, mod: -1,
     motion: t => { const c = chain(t).phi[lk.k]; return XF.mul(q.frame, XF.Rz((q.ph || 0) + (c ? (q.spin === 'A' ? c.a : c.b) : 0))); } })));
+  if (base) asmBase(M, model, addBom, steps);
   // 기구끼리 겹침 (처음 자세의 상자)
   const boxOf = k => { const ts = model.parts.filter(p => p.mod === k).map(p => xfTris(p.tris, p.motion(0))).concat(model.housing.filter(h => h.mod === k && h.assembly !== false).map(h => h.tris)); return trisBounds([].concat(...ts)); };
   const bx = M.map((_, k) => boxOf(k));
@@ -169,6 +185,32 @@ function asmModel(D) {
   model.mods = M.map(X => ({ name: X.name, ports: X.P.list.map(q => ({ id: q.id, role: q.role, kind: q.kind, label: q.label })) }));
   model.notes.push('조립 작업대 1단계: 기구를 한 줄로 이어 함께 돌립니다. 각 기구 받침은 따로 있어 실제 장치에서는 판이나 프로파일에 함께 고정합니다.');
   return model;
+}
+// 공통 바탕판: 모든 기구 아래 한 판을 깔고, 높이 있는 기구는 바닥판 네 모서리를 기둥으로 받침 (M3 볼트, 기둥 양끝은 M3 탭 2.8 mm)
+function asmBase(M, model, addBom, steps) {
+  const all = model.parts.filter(p => p.mod >= 0).map(p => trisBounds(xfTris(p.tris, p.motion(0)))).concat(model.housing.map(h => trisBounds(h.tris)));
+  const zTop = Math.min(...all.map(b => b.lo[2])) - 0.5, T = 5, feet = [], hung = [];
+  M.forEach((X, k) => {
+    const F = X.m.feet; if (!F) return;
+    if (X.pose[10] < 0.99) { hung.push(k + 1); return; }
+    F.pts.forEach(([x, y]) => { const w = XF.apply(X.pose, [x, y, F.z]); feet.push({ k, x: w[0], y: w[1], h: +(w[2] - zTop).toFixed(1) }); });
+  });
+  if (!feet.length) return;
+  const xs = feet.map(f => f.x), ys = feet.map(f => f.y), x0 = Math.min(...xs) - 10, x1 = Math.max(...xs) + 10, y0 = Math.min(...ys) - 10, y1 = Math.max(...ys) + 10;
+  model.housing.push({ name: '공통 바탕판', file: `base_common_${Math.round(x1 - x0)}x${Math.round(y1 - y0)}`, mod: -1,
+    tris: moveTris(extrudeTris(rectPts(x0, y0, x1, y1), feet.map(f => circlePts(1.7, 20, f.x, f.y)), T), 0, 0, zTop - T), printTris: extrudeTris(rectPts(x0, y0, x1, y1), feet.map(f => circlePts(1.7, 20, f.x, f.y)), T) });
+  const posts = new Map();
+  feet.forEach(f => { if (f.h < 1) return; const key = fmt(f.h, 1);
+    if (!posts.has(key)) posts.set(key, { h: f.h, n: 0, tris: extrudeTris(rectPts(-5, -5, 5, 5), [circlePts(1.4, 20)], f.h) });
+    const P = posts.get(key); P.n++;
+    model.housing.push({ name: `기둥 ${key} mm`, file: `post_${key}`, mod: -1, tris: moveTris(P.tris, f.x, f.y, zTop), printTris: P.tris }); });
+  const np = [...posts.values()].reduce((a, p) => a + p.n, 0);
+  addBom('M3 볼트 (바탕판·기둥 고정)', feet.length + np, '바탕판 아래에서 기둥(또는 기구 다리)으로, 기구 바닥판 위에서 기둥으로 · 길이 10 정도, 다리 바로 고정은 다리 높이 + 5');
+  [...posts.values()].forEach(p => addBom(`출력 기둥 ${fmt(p.h, 1)} mm (10×10)`, p.n, '출력 부품, 양끝 M3 탭'));
+  const W = x1 - x0, H = y1 - y0;
+  model.checks.push({ st: W > 220 || H > 220 ? 'warn' : 'ok', txt: `공통 바탕판 <em>${fmt(W, 0)}×${fmt(H, 0)} mm</em>, 기둥 ${np}개${W > 220 || H > 220 ? ' · 출력판(220 mm)보다 커서 나눠 출력하거나 합판·알루미늄 판을 쓰세요' : ''}` });
+  if (hung.length) model.checks.push({ st: 'warn', txt: `${hung.join(', ')}번 기구는 뒤집혀 매달려 있어 바탕판 기둥으로 받치지 못합니다. 위쪽 틀에 매다세요.` });
+  steps.unshift(`공통 바탕판에 기둥을 M3 볼트로 세우고, 각 기구 바닥판 네 모서리를 기둥 위에 M3 볼트로 고정합니다.`);
 }
 function m0Period(m) { return m.period && isFinite(m.period) ? m.period : 1; }
 function boxXf(b, A) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];

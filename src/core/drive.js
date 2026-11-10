@@ -620,7 +620,7 @@ function redModule(Tm) {   // 피니언 굽힘 응력(루이스, Y≈0.25)이 20
   return 3;
 }
 function linkMotorOptions(D) {
-  const M = linkMotion(D, 180), Treq = Math.max(0.5, linkLoadT(D, M) || 0), n0 = Math.max(0.1, D.rpm), out = [];
+  const M = linkMotion(D, 180), Treq = Math.max(0.5, (linkLoadT(D, M) || 0) + (+(D.drive || {}).extraT || 0)), n0 = Math.max(0.1, D.rpm), out = [];
   const rq = (D.drive || {}).red, fixed = rq === undefined || rq === 'auto' ? 0 : Math.max(1, Math.round(+rq) || 1);
   for (const id of LK_MOTORS) {
     const Mo = MOTORS[id], vars = [];

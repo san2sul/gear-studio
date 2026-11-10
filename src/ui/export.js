@@ -46,7 +46,9 @@ function exportZip() {
   }
   if (withHousing) {
     let ah = asm.slice();
+    const seenH = new Set();
     model.housing.forEach(h => {
+      if (seenH.has(h.file)) { if (h.assembly !== false) ah = ah.concat(h.tris); return; } seenH.add(h.file);
       const f = placeFlat(h.printTris || h.tris, h.print);
       files.push({ name: `housing/${h.file}.stl`, data: stlBinary(xfTris(f.tris, XF.T(0, 0, -f.b.lo[2])), h.file) });
       if (h.assembly !== false) ah = ah.concat(h.tris);

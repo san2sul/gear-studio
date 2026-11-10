@@ -50,16 +50,18 @@ function linkFinish(D, model, K, M, zones) {
   const { MO, mt, bt, cb, z1, t, servo, dv } = K, checks = model.checks;
   model.rods.unshift({ a: [0, 0, MO ? K.shBot : -10], b: [0, 0, Math.min(K.shTop, z1 + t)], d: K.shD, role: 'input' });
   const ext = K.ext, x0 = ext.lo[0] - 4, y0 = ext.lo[1] - 4, x1 = ext.hi[0] + 4, y1 = ext.hi[1] + 4, R = rectPts(x0, y0, x1, y1);
-  const hs = [K.red ? circlePts((D.sd + 0.3) / 2, 32) : MO ? (servo ? mt.cut : circlePts((MO.boss.d + 0.5) / 2, 40)) : circlePts((D.sd + 0.4) / 2, 40)].concat(model.plateHoles.map(([x, y, d]) => circlePts(d / 2, 24, x, y)));
+  const feet = [[x0 + 4, y0 + 4], [x1 - 4, y0 + 4], [x0 + 4, y1 - 4], [x1 - 4, y1 - 4]], fh = D.cornerHoles ? feet.map(([x, y]) => circlePts(1.7, 20, x, y)) : [];
+  const hs = fh.concat([K.red ? circlePts((D.sd + 0.3) / 2, 32) : MO ? (servo ? mt.cut : circlePts((MO.boss.d + 0.5) / 2, 40)) : circlePts((D.sd + 0.4) / 2, 40)].concat(model.plateHoles.map(([x, y, d]) => circlePts(d / 2, 24, x, y))));
   const sm = mt ? mt.holes.map(h => circlePts(h.d / 2, 20, h.x, h.y)) : [];
   let plate = cb ? extrudeTris(R, hs.concat(sm), bt - cb + 0.01).concat(moveTris(extrudeTris(R, hs.concat(mt.holes.map(h => circlePts(h.cb / 2, 24, h.x, h.y))), cb), 0, 0, bt - cb))
     : extrudeTris(R, hs.concat(sm), bt);
   const drop = Math.max(mt ? mt.drop : 0, model.dropExtra || 0), legH = drop > 0 ? Math.ceil(drop + 3) : 0;
-  if (legH) [[x0, y0], [x1 - 8, y0], [x0, y1 - 8], [x1 - 8, y1 - 8]].forEach(([lx, ly]) => { plate = plate.concat(moveTris(extrudeTris(rectPts(lx, ly, lx + 8, ly + 8), [], legH + 0.01), 0, 0, -legH)); });
+  if (legH) [[x0, y0], [x1 - 8, y0], [x0, y1 - 8], [x1 - 8, y1 - 8]].forEach(([lx, ly]) => { plate = plate.concat(moveTris(extrudeTris(rectPts(lx, ly, lx + 8, ly + 8), D.cornerHoles ? [circlePts(1.7, 20, lx + 4, ly + 4)] : [], legH + 0.01), 0, 0, -legH)); });
   model.housing.unshift({ name: '바닥판', file: 'base_plate', tris: plate, print: legH ? K.flip : undefined });
   const pg = new Map(); K.pins.forEach(pn => { const k = fmt(pn.L, 1); pg.set(k, (pg.get(k) || 0) + 1); });
   pg.forEach((n, k) => model.housing.push({ name: '핀', file: `pin_d${K.pd}_L${k}${n > 1 ? '_x' + n : ''}`, tris: extrudeTris(circlePts(K.pd / 2 - 0.05, 24), [], +k), assembly: false }));
   model.frame = true; model.motion = M; model.single = false; model.interference = null;
+  model.feet = { pts: feet, z: legH ? -legH : 0, holes: !!D.cornerHoles };
   model.linkInfo = { bore: K.bore, hub: K.hub, spl: K.spl, cen: servo ? +(MO.servo.center + 0.2).toFixed(2) : 0, shD: K.shD, z1 };
   model.period = K.period; model.thOf = K.thOf;
   if (!model.hud) model.hud = [['입력', fmt(K.rpm, 1) + ' rpm']];

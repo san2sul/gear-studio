@@ -9,7 +9,7 @@ function renderAsm() {
   if (!aD) aD = asmDefault();
   const d0 = aD.mods[0] && aD.mods[0].design;
   $('asmMotor').innerHTML = asmOpts([['auto', '자동 추천'], ['none', '없음 (손·외부 축)'], ...LK_MOTORS.map(id => [id, MOTORS[id].short])], d0 && d0.drive ? d0.drive.motor : 'none');
-  $('asmRpm').value = d0 ? d0.rpm : 30;
+  $('asmRpm').value = d0 ? d0.rpm : 30; $('asmBase').checked = aD.base !== false;
   $('asmAddType').innerHTML = asmOpts(LK_TYPES.map(t => [t, LK_KO[t]]), 'slider');
   $('asmList').innerHTML = aD.mods.map((md, k) => {
     const d = md.design, L = asmLinkFix(md.link), outs = k ? asmPortsOf(k - 1) : [];
@@ -40,6 +40,7 @@ $('asmAdd').onclick = () => { const d = linkageDefault(); d.type = $('asmAddType
 $('asmFromLink').onclick = () => { if (!kD) return toast('먼저 동작 기구 탭에서 기구를 만드세요');
   const d = JSON.parse(JSON.stringify(kD)); if (aD.mods.length) d.drive.motor = 'none';
   aD.mods.push({ design: d, from: 'out', link: { kind: 'belt', zA: 20, zB: 20, m: 1, ang: 'auto' } }); asmRebuild(0, true); toast('동작 기구 탭의 설계를 끝에 넣었습니다'); };
+$('asmBase').onchange = () => { aD.base = $('asmBase').checked; asmRebuild(); };
 $('asmReset').onclick = () => { aD = asmDefault(); asmRebuild(0, true); };
 $('asmList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
