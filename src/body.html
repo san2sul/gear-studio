@@ -14,7 +14,24 @@
       <button role="tab" id="tabLink" aria-selected="false">동작 기구</button>
       <button role="tab" id="tabFind" aria-selected="false">동작으로 찾기</button>
       <button role="tab" id="tabStd" aria-selected="false">규격 부품</button>
+      <button role="tab" id="tabAsm" aria-selected="false">조립 작업대</button>
     </div>
+
+    <!-- 조립 작업대 -->
+    <section id="paneAsm" style="display:none;flex-direction:column;gap:14px">
+      <p class="hint">여러 기구를 한 줄로 이어 하나의 장치로 만듭니다. 1번 기구가 동력원을 받고, 다음 기구는 앞 기구의 출력축에 커플링·기어·벨트로 이어져 함께 돕니다. 전체를 ZIP으로 받으면 모든 기구의 부품과 이음 부품, 합친 부품표가 들어 있습니다.</p>
+      <fieldset>
+        <legend>동력원 (1번 기구)</legend>
+        <div class="grid2"><label class="f">모터<select id="asmMotor"></select></label><label class="f">입력 회전수 <span class="u">rpm</span><input type="number" id="asmRpm" value="30" min="1" step="1"></label></div>
+      </fieldset>
+      <fieldset>
+        <legend>기구 사슬</legend>
+        <div id="asmList" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="row" style="margin-top:10px"><select id="asmAddType"></select><button class="btn primary" id="asmAdd">끝에 더하기</button></div>
+        <div class="row" style="margin-top:6px"><button class="btn" id="asmFromLink">동작 기구 탭의 설계 넣기</button><button class="btn" id="asmReset">처음 예시로</button></div>
+        <p class="hint">직선 출력(슬라이더·요크·리드스크루)과 얀센 다리는 사슬의 끝에 둡니다. 직선 운동을 다시 회전으로 잇는 랙·캠 이음과 한 입력을 여러 갈래로 나누는 것은 다음 단계입니다.</p>
+      </fieldset>
+    </section>
 
     <!-- 동작으로 찾기 -->
     <section id="paneFind" style="display:none;flex-direction:column;gap:14px">
@@ -329,6 +346,7 @@
 
     <!-- 캠 -->
     <section id="paneLink" style="display:none;flex-direction:column;gap:14px">
+      <button class="btn primary" id="lkBack" hidden>조립 작업대로 돌아가기 (고친 치수 반영)</button>
       <fieldset>
         <legend>기구 종류</legend>
         <div class="seg" id="lkTypeSeg" style="grid-template-columns:1fr 1fr">

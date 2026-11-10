@@ -194,6 +194,7 @@ function buildModel0(D) {
   if (D.kind === 'cam') return camModel(D);
   if (D.kind === 'linkage') return linkageModel(D);
   if (D.kind === 'std') return stdModel(D);
+  if (D.kind === 'asm') return asmModel(D);
   if (D.kind === 'cycloid') return cycloidModel(D);
   if (D.kind === 'worm') return wormModel(D);
   return spurModel(D);

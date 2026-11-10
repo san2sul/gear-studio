@@ -11,6 +11,7 @@ async function saveFile(name, data) {
 }
 function baseName() {
   const sb = design.box && shapeOf(design.box), bx = !design.box ? '' : sb === 'cyl' ? `_cyl${design.box.W}x${design.box.D}` : sb === 'poly' ? `_shape${design.box.pts.length}_h${design.box.D}` : `_${design.box.W}x${design.box.H}x${design.box.D}`;
+  if (design.kind === 'asm') return `assembly_${design.mods.length}mods_${design.mods.map(m => m.design.type || m.design.kind).join('-')}`;
   if (design.kind === 'bevel') return `bevel_m${design.m}_z${design.z1}-${design.z2}${bx}`;
   if (design.kind === 'linkage') return design.type === 'slider' ? `slider_crank_r${design.slider.r}_L${design.slider.L}` : `fourbar_${design.fourbar.a}_${design.fourbar.b}_${design.fourbar.c}_${design.fourbar.d}`;
   if (design.kind === 'cam') return `cam_${design.camType}_${design.camType === 'disk' ? design.follower + '_' : ''}Rb${design.Rb}`;
@@ -46,7 +47,7 @@ function exportZip() {
   if (withHousing) {
     let ah = asm.slice();
     model.housing.forEach(h => {
-      const f = placeFlat(h.tris, h.print);
+      const f = placeFlat(h.printTris || h.tris, h.print);
       files.push({ name: `housing/${h.file}.stl`, data: stlBinary(xfTris(f.tris, XF.T(0, 0, -f.b.lo[2])), h.file) });
       if (h.assembly !== false) ah = ah.concat(h.tris);
     });

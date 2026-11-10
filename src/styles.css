@@ -98,6 +98,9 @@ main{display:flex;flex-direction:column;min-width:0}
 .checks li.ok::before{background:var(--ok)} .checks li.warn::before{background:var(--warn)} .checks li.bad::before{background:var(--bad)}
 .checks li em{font-style:normal;font-family:var(--f-mono);font-size:12.5px}
 .tblwrap{overflow-x:auto}
+.kit td{overflow-wrap:anywhere}
+.kit td{white-space:normal}
+@media (max-width:760px){.kit td:first-child{white-space:normal}.kit table{table-layout:fixed}}
 table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
 th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font:600 11px var(--f-ui);color:var(--mute);letter-spacing:.03em}
@@ -132,4 +135,6 @@ td .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:
   .simbar input[type=range]{width:80px}
 }
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+.asmCard{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.asmCard select{max-width:100%}
 </style>

@@ -1,6 +1,6 @@
 /* ---- 표시 ---- */
 function setDesign(D, refit = true) {
-  const keepView = !refit && design && design.kind === D.kind && (D.kind === 'train' || D.kind === 'cam' || D.kind === 'linkage');
+  const keepView = !refit && design && design.kind === D.kind && (D.kind === 'train' || D.kind === 'cam' || D.kind === 'linkage' || D.kind === 'asm');
   design = D; model = buildModel(D); simT = 0;
   buildScene(keepView); renderReport(); updateToTrain(); drawShapeEd();
   if (D.kind === 'train' && $('paneTrain').style.display !== 'none') renderSkip();
@@ -13,7 +13,7 @@ function renderReport(extra = []) {
   $('hud').innerHTML = `<div class="card">${model.hud.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('')}</div>`;
   $('legend').innerHTML = model.kind === 'std' ? '' : `<div><i style="background:${css('--ok')}"></i>입력축</div>${model.single ? '' : `<div><i style="background:${css('--bad')}"></i>출력축</div>`}`;
   $('check').disabled = !model.interference;
-  $('tblTitle').textContent = model.kind === 'linkage' ? '링크 치수' : model.kind === 'cam' ? '부품' : '기어 사양';
+  $('tblTitle').textContent = model.kind === 'asm' ? '기구 사슬' : model.kind === 'linkage' ? '링크 치수' : model.kind === 'cam' ? '부품' : '기어 사양';
   const K = model.kit, kb = $('kitBox');
   kb.hidden = !K;
   const tbl = rows => `<table>${rows.map(r => `<tr>${r.map(c => `<td>${escH(c)}</td>`).join('')}</tr>`).join('')}</table>`;

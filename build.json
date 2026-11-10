@@ -26,6 +26,8 @@
     "src/mechanisms/worm.js",
     "src/mechanisms/cam.js",
     "src/mechanisms/cycloid.js",
+    "src/assembly/ports.js",
+    "src/assembly/bench.js",
     "src/mechanisms/train.js",
     "src/ui/between.html",
     "src/ui/app.js",
@@ -37,6 +39,7 @@
     "src/ui/standard-parts.js",
     "src/ui/finder.js",
     "src/ui/linkage.js",
+    "src/ui/assembly.js",
     "src/ui/shape-editor.js"
   ]
 }
