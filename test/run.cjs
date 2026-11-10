@@ -49,7 +49,7 @@ for (const [kind, zA, zB] of [['shaft', 0, 0], ['mesh', 18, 27], ['belt', 16, 40
 }
 { const M = C.buildModel(C.asmDefault()); ok(M.kind === 'asm' && M.table.rows.length === 2, '조립 기본값');
   ok(M.loads.req[0] > M.loads.own[0] && M.checks.some(c => /동력원이 감당할/.test(c.txt)), '조립: 뒤 기구 부하가 1번에 더해지지 않음');
-  const B = M.housing.filter(h => h.mod === -1); ok(B.some(h => /base_common/.test(h.file)), '조립: 공통 바탕판 없음');
+  const B = M.housing.filter(h => h.mod === -1); ok(B.some(h => /base_common|base_tile/.test(h.file)), '조립: 공통 바탕판 없음');
   B.forEach(h => ok(openEdges(h.tris) === 0, `조립: ${h.file} 메시가 열려 있음`));
   const N = C.buildModel({ ...C.asmDefault(), base: false }); ok(!N.housing.some(h => /base_common/.test(h.file)), '조립: 바탕판 끄기'); }
 // 6. 직선 출력 → 랙·피니언
@@ -59,4 +59,29 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   M.parts.filter(p => p.mod === -1).forEach(p => ok(openEdges(p.tris) === 0, `랙 ${a}: ${p.file} 메시가 열려 있음`));
   const c = M.chain(0.7); ok(Math.abs(c.phi[1].b - c.phi[1].a * 2 / z) < 1e-9, `랙 ${a}: 비가 맞지 않음`);
 }
+// 7. 갈래: 한 출력에 두 기구 (벨트 + 기어 층), 부하 합, 각도, 축 직결 둘은 막음
+{ const A = { kind: 'asm', mods: [{ design: lk('geneva', 'auto') }, { design: lk('slider'), link: { kind: 'belt', zA: 20, zB: 20 } }, { design: lk('fourbar'), src: 0, link: { kind: 'mesh', zA: 20, zB: 30, m: 1 } }, { design: lk('ratchet'), src: 1, link: { kind: 'belt', zB: 16, m: 1 } }] };
+  const M = C.buildModel(A), bad = M.checks.filter(c => c.st === 'bad');
+  ok(!bad.length, `갈래: ${bad.map(c => c.txt).join(' / ')}`);
+  ok(M.srcs.join() === '-1,0,0,1', '갈래: 이을 기구 번호');
+  const L = M.loads; ok(Math.abs(L.req[0] - (L.own[0] + L.req[1] * L.gain[1] + L.req[2] * L.gain[2])) < 1e-6, '갈래: 부하가 합쳐지지 않음');
+  const c = M.chain(0.4); ok(Math.abs(c.phi[2].b - c.phi[2].a * -20 / 30) < 1e-9 && Math.abs(c.phi[1].b - c.phi[1].a) < 1e-9, '갈래: 각도 비');
+  ok(M.hud.some(h => /갈래 2/.test(h[1])), '갈래: 표시');
+  const n = re => M.parts.filter(p => p.mod === -1 && re.test(p.name));
+  ok(n(/이음 1→2/).length === 2 && n(/이음 1→3/).length === 2 && n(/이음 2→4/).length === 2, '갈래: 이음 부품 이름');
+  // 같은 축의 풀리와 기어는 층이 달라 겹치지 않음
+  const wb = p => { const T = p.motion(0), P = p.tris; let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+    for (const t9 of P) for (let j = 0; j < 9; j += 3) { const x = t9[j], y = t9[j + 1], z = t9[j + 2], q = [T[0] * x + T[1] * y + T[2] * z + T[3], T[4] * x + T[5] * y + T[6] * z + T[7], T[8] * x + T[9] * y + T[10] * z + T[11]];
+      for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], q[a]); hi[a] = Math.max(hi[a], q[a]); } } return { lo, hi }; };
+  const pa = wb(n(/이음 1→2/)[0]), ga = wb(n(/이음 1→3/)[0]);
+  ok([0, 1, 2].some(a => Math.min(pa.hi[a], ga.hi[a]) - Math.max(pa.lo[a], ga.lo[a]) <= 0.01), '갈래: 같은 축의 풀리와 기어가 겹침');
+  const S = C.buildModel({ kind: 'asm', mods: [{ design: lk('geneva', 'auto') }, { design: lk('fourbar'), link: { kind: 'shaft' } }, { design: lk('fourbar'), src: 0, link: { kind: 'shaft' } }] });
+  ok(S.checks.some(c => c.st === 'bad' && /이미 다른 기구/.test(c.txt)), '갈래: 축 직결 둘을 막지 않음'); }
+// 8. 크기별 규칙: 등급 안내, 큰 바탕판은 출력판에 드는 조각으로, 작은 모듈 경고
+{ const M = C.buildModel(C.asmDefault()); ok(M.size && M.checks.some(c => /크기 등급/.test(c.txt)), '크기: 등급 없음');
+  const T = M.housing.filter(h => /base_tile|base_splice/.test(h.file)); ok(T.length >= 3, '크기: 큰 바탕판이 나뉘지 않음');
+  T.forEach(h => { const b = C.trisBounds(h.printTris); ok(b.hi[0] - b.lo[0] <= 220 && b.hi[1] - b.lo[1] <= 220, `크기: ${h.file} 출력판을 넘음`); ok(openEdges(h.tris) === 0, `크기: ${h.file} 메시가 열려 있음`); });
+  ok(!M.checks.some(c => /출력판\(220×220 mm\)보다 큰 부품/.test(c.txt)), '크기: 나눈 뒤에도 판보다 큰 부품');
+  const W = C.buildModel({ kind: 'asm', mods: [{ design: lk('geneva', 'auto') }, { design: lk('fourbar'), link: { kind: 'mesh', zA: 30, zB: 30, m: 0.4 } }] });
+  ok(W.checks.some(c => c.st === 'warn' && /모듈 0.4/.test(c.txt)), '크기: 작은 모듈 경고 없음'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

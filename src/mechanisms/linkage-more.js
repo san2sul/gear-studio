@@ -183,10 +183,43 @@ function driveAlts(alts, P) {
     }
   return alts;
 }
-function buildModel(D) {
+function buildModel(D, opt = {}) {
   const m = buildModel0(D);
   if (D.drive && ['gearbox', 'bevel', 'planetary'].includes(D.kind)) driveAttach(D, m);
+  if (!opt.sub) sizeRules(D, m);
   return m;
+}
+/* ---- 크기별 규칙 ----
+ 전체 크기로 등급(초소형·탁상·큰·아주 큰)을 정하고, 그 크기에서 지켜야 할 것을 알려 줌.
+ 출력판(BED)보다 큰 출력 부품, FDM으로 뽑기 힘든 작은 모듈·가는 축도 따로 짚음 */
+const BED = { x: 220, y: 220, z: 250 };
+const SIZE_CLASS = [
+  { max: 30, ko: '초소형', tip: '0.2 mm 노즐(또는 레진 프린터)과 0.1 mm 층 높이를 쓰고, 축은 금속 핀(2–3 mm)으로, 구멍은 출력 뒤 드릴로 다듬으세요.' },
+  { max: 220, ko: '탁상', tip: '보통 FDM(0.4 mm 노즐, PLA·PETG)으로 한 판에 뽑을 수 있는 크기입니다.' },
+  { max: 600, ko: '큰', tip: '바탕은 알루미늄 프로파일(2020)이나 합판으로, 축은 강 봉으로 하고, 출력 부품은 PETG·채움 40% 이상, 벽 4겹 이상을 쓰세요. 판보다 큰 부품은 나눠 출력해 볼트로 잇습니다.' },
+  { max: Infinity, ko: '아주 큰', tip: '출력 부품은 기어·이음·브래킷 같은 작은 부품에만 쓰고, 뼈대는 금속(프로파일·강판)으로 만드세요. 무게가 커서 모터에 브레이크나 웜 감속을 두고, 끼임 방지 덮개와 비상 정지 스위치를 다세요.' },
+];
+function sizeRules(D, m) {
+  if (!m || !m.parts || !m.checks) return;
+  const live = m.parts.filter(p => !p.noExport && p.tris && p.tris.length), hs = (m.housing || []).filter(h => h.assembly !== false && h.tris && h.tris.length);
+  if (!live.length && !hs.length) return;
+  const all = trisBounds([].concat(...live.map(p => p.motion ? xfTris(p.tris, p.motion(0)) : p.tris), ...hs.map(h => h.tris)));
+  const dim = [0, 1, 2].map(a => all.hi[a] - all.lo[a]), L = Math.max(...dim), C = SIZE_CLASS.find(c => L <= c.max);
+  m.size = { dim, cls: C.ko };
+  m.checks.push({ st: L > 600 ? 'warn' : 'ok', txt: `크기 등급 <em>${C.ko}</em> (전체 ${dim.map(v => fmt(v, 0)).join('×')} mm): ${C.tip}` });
+  // 출력판보다 큰 출력 부품 (어느 방향으로 눕혀도 안 들어가는 것)
+  const seen = new Set(), big = [];
+  live.concat(m.housing || []).forEach(p => { if (p.noExport || seen.has(p.file)) return; seen.add(p.file);
+    const b = trisBounds(p.printTris || p.tris), d = [0, 1, 2].map(a => b.hi[a] - b.lo[a]).sort((x, y) => x - y);
+    if (d[1] > BED.x || d[2] > Math.max(BED.y, BED.z)) big.push(`${p.name} ${fmt(d[2], 0)}×${fmt(d[1], 0)}`); });
+  if (big.length) m.checks.push({ st: 'warn', txt: `출력판(${BED.x}×${BED.y} mm)보다 큰 부품 ${big.length}개: ${big.slice(0, 4).join(', ')}${big.length > 4 ? ' …' : ''} mm. 나눠 출력해 볼트·도브테일로 잇거나 판재·프로파일로 바꾸세요.` });
+  // 작은 이·가는 축 (FDM 한계)
+  const ms = [], walk = (o, k) => { if (!o || typeof o !== 'object') return; for (const [key, v] of Object.entries(o)) { if (key === 'drive') continue; if (key === 'm' && typeof v === 'number' && v > 0) ms.push(v); else walk(v, key); } };
+  walk(D);
+  const mMin = ms.length ? Math.min(...ms) : Infinity, dMin = Math.min(...(m.rods || []).map(r => r.d).filter(v => v > 0));
+  if (mMin < 0.5) m.checks.push({ st: 'warn', txt: `모듈 ${fmt(mMin, 2)} 기어는 0.4 mm 노즐로는 이가 뭉개집니다. 레진(SLA) 프린터나 0.2 mm 노즐을 쓰거나 모듈을 0.5 이상으로 키우세요.` });
+  else if (mMin < 0.8) m.checks.push({ st: 'ok', txt: `모듈 ${fmt(mMin, 2)}: 0.4 mm 노즐이면 층 높이 0.12 mm 이하, 첫 층 확장(코끼리 발) 보정을 켜세요.` });
+  if (dMin < 3) m.checks.push({ st: 'warn', txt: `축 지름 ${fmt(dMin, 1)} mm는 출력하면 부러지기 쉽습니다. 강 핀·바늘 롤러 핀을 끼우세요.` });
 }
 function buildModel0(D) {
   if (D.kind === 'train') return trainModel(D);
