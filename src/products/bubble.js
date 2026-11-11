@@ -79,7 +79,7 @@ function m2mConcepts(R) {
 }
 // ---- G4 B안(모터형) 설계: 요구치 → 치수 역산 ----
 // 좌표: x = 총구 방향, y = 왼쪽, z = 위. 링 바퀴 축이 원점, 맨 위 링 = 총구 중심 (0, 0, R)
-const BUB_DEF = { ringD: 25, rings: 6, ringRim: 3, wheelRpm: 40, wheelT: 2.4, wall: 2.4, volt: 3, m: 1, z1: 12 };
+const BUB_DEF = { ringD: 25, rings: 6, ringRim: 3, wheelRpm: 40, wheelT: 2.4, wall: 2.4, volt: 3, m: 1, z1: 12, gunLen: 130, gripAngle: 105 };
 function bubbleDesign(p = {}) {
   const Q = { ...BUB_DEF, ...p };
   // 링 중심 반지름: 이웃 링 사이 살 4 mm 이상, 허브(반지름 8)와 링 사이 3 mm 이상
@@ -97,8 +97,10 @@ function bubbleGeom(D) {
   const tray = { x0: -8, x1: 10, y: head.y - W - 0.6, zBot: -(wheelR + 3.5) - 2, zTop: -(R - D.ringD / 2 - D.ringRim) + 7.5 };
   tray.level = tray.zTop - 6;   // 액면: 통 위 끝보다 6 mm 아래 (가정)
   // 몸통 바닥은 8 mm, 피니언(바퀴 모터)이 낮게 오면 그 아래로 내림
-  const body = { x0: -110, x1: head.x0, y: 30, zTop: R + motR + W + 4, zBot: Math.min(8, pin[1] - MOTORS.n20_300.body.r - W - 0.6) };
-  return { W, R, wheelR, a, ra1, ra2, pin, fanR, motR, head, tray, body };
+  const body = { x0: head.x1 - (D.gunLen || 130), x1: head.x0, y: 30, zTop: R + motR + W + 4, zBot: Math.min(8, pin[1] - MOTORS.n20_300.body.r - W - 0.6) };
+  const slant = ((D.gripAngle || 105) - 90) * D2R, off = (body.zBot + 80) * Math.tan(slant);   // 손잡이 기울기: 총열과 손잡이 뒤선 사이 각도
+  const grip = { slant, off, bt: [-78, body.zBot], bb: [-78 - off, -80], fb: [-46 - off, -80], ft: [-46, body.zBot] };
+  return { W, R, wheelR, a, ra1, ra2, pin, fanR, motR, head, tray, body, grip };
 }
 // 열린 꺾은선을 왼쪽으로 t만큼 두껍게 한 띠 다각형 (껍데기 벽)
 function stripPoly(path, t) {
@@ -139,7 +141,9 @@ function bubbleModel(D) {
   const m130 = MOTORS.m130, n20 = MOTORS.n20_300;
   model.parts.push({ name: '130 모터(구입)', file: 'proxy_m130', noExport: true, tris: motorProxy(m130), motion: () => XF.basis([0, 1, 0], [0, 0, 1], [1, 0, 0], [H.x0, 0, R]) });
   model.parts.push({ name: 'N20 모터(구입)', file: 'proxy_n20', noExport: true, tris: motorProxy(n20), motion: () => XF.basis([0, 1, 0], [0, 0, 1], [1, 0, 0], [H.x0, G.pin[0], G.pin[1]]) });
-  const batt = [31 / 2, 16 / 2, 56]; model.parts.push({ name: 'AA 2개 홀더(구입)', file: 'proxy_aa2', noExport: true, tris: extrudeTris(rectPts(-batt[1], -batt[0], batt[1], batt[0]), [], batt[2]), motion: () => XF.T(-72, 0, -72) });
+  // 건전지 홀더: 손잡이 기울기를 따라 눕힘, 손잡이 가운데선 위 z −44 높이에 중심
+  const batt = [31 / 2, 16 / 2, 56], sl = G.grip.slant, bz = -44, bx = -62 - G.grip.off * (B.zBot - bz) / (B.zBot + 80);
+  model.parts.push({ name: 'AA 2개 홀더(구입)', file: 'proxy_aa2', noExport: true, tris: extrudeTris(rectPts(-batt[1], -batt[0], batt[1], batt[0]), [], batt[2]), motion: () => XF.mul(XF.basis([Math.cos(sl), 0, -Math.sin(sl)], [0, 1, 0], [Math.sin(sl), 0, Math.cos(sl)], [bx, 0, bz]), XF.T(0, 0, -batt[2] / 2)) });
   model.parts.push({ name: '마이크로 스위치(구입)', file: 'proxy_switch', noExport: true, tris: extrudeTris(rectPts(-3, -10, 3, 10), [], 6), motion: () => XF.basis([0, 0, 1], [0, 1, 0], [-1, 0, 0], [-46, 0, 14]) });
   model.rods.push({ a: [H.x0, 0, 0], b: [D.wheelT + 2, 0, 0], d: 3, role: 'output' });
   // ---- G5 껍데기: 머리(바퀴·통 둘레) + 앞 덮개 + 몸통 좌우 반쪽(손잡이 포함) ----
@@ -152,8 +156,8 @@ function bubbleModel(D) {
   model.housing.push({ name: '머리 몸체', file: 'H1_head_body', tris: back.concat(sideL, sideR, top), print: toPrintX });
   model.housing.push({ name: '앞 덮개', file: 'H2_front_cover', tris: plate(rectPts(-hy, H.zBot, hy, H.zTop), [circlePts(18, 64, 0, R)], W, BX(H.x1 - W)), print: toPrintX });
   // 몸통 옆모양 (x, z): 앞(머리 쪽)이 열린 꺾은선, 방아쇠 자리만 비움
-  const path1 = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], [-78, B.zBot], [-96, -80], [-62, -80], [-46, B.zBot], [-42, B.zBot]], path2 = [[-30, B.zBot], [B.x1, B.zBot]];
-  const outline = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], [-78, B.zBot], [-96, -80], [-62, -80], [-46, B.zBot], [B.x1, B.zBot]];
+  const path1 = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [-42, B.zBot]], path2 = [[-30, B.zBot], [B.x1, B.zBot]];
+  const outline = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [B.x1, B.zBot]];
   const half = (s) => { const y0 = s > 0 ? B.y : -B.y + W, yIn = s > 0 ? B.y - W : 0;   // 옆판은 바깥, 벽은 0 ~ 옆판 사이
     const sideP = xfTris(extrudeTris(outline, [], W), BYp(y0)), wall = [stripPoly(path1, W), stripPoly(path2, W)].flatMap(P => xfTris(extrudeTris(P, [], B.y - W), BYp(yIn)));
     return sideP.concat(wall); };
@@ -178,6 +182,8 @@ function bubbleModel(D) {
   const gapSw = (-46) - (-46); chk(true, `방아쇠를 당기면(2 mm) 꼬리 끝이 스위치(x −46)를 누릅니다`);
   const gapBodyN20 = (G.pin[1] - n20.body.r) - (B.zBot + W); chk(gapBodyN20 >= 0.4, `N20 모터 아래와 몸통 바닥 벽 사이 ${fmt(gapBodyN20, 1)} mm`);
   const gapBodyTop = (B.zTop - W) - (R + G.motR); chk(gapBodyTop >= 1, `130 모터 위와 몸통 윗벽 사이 ${fmt(gapBodyTop, 1)} mm`);
+  const tail = (G.grip.bb[0] - 8) - B.x0; chk(tail >= 0, tail >= 0 ? `총 길이 ${D.gunLen} mm: 손잡이 뒤로 몸통이 ${fmt(tail, 0)} mm 남습니다` : `총 길이 ${D.gunLen} mm로는 손잡이(기울기 ${D.gripAngle}°)가 몸통 뒤로 삐져나옵니다. 길이를 ${Math.ceil(14 - G.grip.bb[0] + 8)} mm 이상으로 하세요`);
+  const gripIn = 32 * Math.cos(G.grip.slant) - 2 * W; chk(gripIn - 16 >= 1, `손잡이 안쪽 폭 ${fmt(gripIn, 1)} mm에 건전지 홀더(16 mm)가 들어갑니다 (여유 ${fmt(gripIn - 16, 1)} mm)`);
   const sz = [H.x1 - B.x0, 2 * H.y, Math.max(H.zTop, B.zTop) + 80];
   chk(true, `변속비 <em>${D.z2}:${D.z1}</em> · 링 바퀴 <em>${fmt(wheelGot, 1)} rpm</em> · 총구 통과 <em>${fmt(bubblesPerS, 1)}번/초</em> · 링 중심 반지름 <em>${fmt(R, 1)} mm</em>`);
   C.push({ st: 'warn', txt: '비누막이 생기는지, 방울 크기와 개수는 계산하지 않습니다(미검증). 출력 뒤 실험해 기록하세요.' });

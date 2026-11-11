@@ -126,9 +126,9 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
 { // 12. 제품 요청서 (G1): 모양·사람 입력·효과·동력을 다섯 칸으로, 움직임을 모르면 추천 안 함
   const P = [
     ['총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함', 'product', 'gun', 'trigger', ['bubble'], null],
-    ['버튼을 누르면 상자 뚜껑이 90도 열리는 장난감, 건전지 사용', 'product', 'box', 'button', ['motion'], 'battery'],
+    ['버튼을 누르면 뚜껑이 90도 열리는 상자 모양 장난감, 건전지 사용', 'product', 'box', 'button', ['motion'], 'battery'],
     ['손잡이를 돌리면 인형 날개가 흔들리게, 손힘으로만', 'product', 'figure', 'handle', ['motion'], 'hand'],
-    ['스위치를 켜면 바람이 나오는 원통 선풍기', 'product', 'tube', 'switch', ['wind'], null],
+    ['스위치를 켜면 바람이 나오는 원통 모양 선풍기', 'product', 'tube', 'switch', ['wind'], null],
     ['와이퍼처럼 80도를 2초에 한 번 흔들고 싶어', 'motion', null, null, ['motion'], null] ];
   for (const [t, kind, shape, input, fx, power] of P) { const R = C.m2mRequest(t);
     ok(R.kind === kind, `요청서 "${t}": 종류 ${R.kind}`);
@@ -140,7 +140,8 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(B.spec.purpose.value !== 'push', '요청서: 비누방울 "나가야"를 밀기로 읽음');
   ok(C.m2mRequestQuestions(B).some(q => q.key === 'power'), '요청서: 동력을 모르면 물어야 함');
   const RB = C.m2mRecommend(B.spec); ok(RB.blocked === 'motion' && RB.list.length === 0, '요청서: 움직임을 모르는데 추천함');
-  ok(C.m2mRequestQuestions(C.m2mRequest(P[4][0])).length === 0, '요청서: 움직임 하나 문장에 제품 질문을 함'); }
+  ok(C.m2mRequestQuestions(C.m2mRequest(P[4][0])).length === 0, '요청서: 움직임 하나 문장에 제품 질문을 함');
+  ok(C.m2mRequest('컨베이어 위 상자를 3초마다 옆으로 40mm 밀어내고 싶어').kind === 'motion', '요청서: 옮기는 물건(상자)을 제품 모양으로 읽음'); }
 { // 13. 비누방울 총 (G2~G6): 기능 분해, 개념안 걸러내기, B안 역산·검사·껍데기·출력 크기
   const R = C.m2mRequest('총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함'), Dc = C.m2mDecompose(R);
   ok(Dc.ok && !Dc.gaps.length && ['wet_film', 'move_film', 'make_air', 'store_liquid'].every(f => Dc.funcs.some(x => x.id === f)), '비누방울: 기능 분해');

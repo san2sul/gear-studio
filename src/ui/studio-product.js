@@ -8,12 +8,31 @@ function stPHint() {
     '다음: 값을 바꾸면 치수·3D·껍데기가 다시 계산됩니다. 끝나면 시뮬레이션에서 확인하세요.', '다음: 미달이 없으면 제작 단계에서 파일을 받으세요.', '파일을 받고, 출력해 실험한 결과를 기록하세요.'][Math.max(0, stStep - 1)];
 }
 const ST_FLOW = { hand: '사람 손', trigger: '방아쇠 움직임', power: '전기', liquid: '비누액', film: '비누막', 'film@muzzle': '총구의 비누막', drive: '동력', 'air@muzzle': '총구의 바람' };
-function stIsProd() { return !!(P && P.req && m2mDecompose(P.req).ok); }
+function stIsProd() { return !!(P && P.req && P.req.kind === 'product'); }
+const stCanBuild = () => !!(P && P.req && m2mDecompose(P.req).ok);
+// 요청서가 바뀜 → 고른 개념안이 여전히 살아 있으면 설계를 다시 계산, 탈락했으면 선택을 풂
+function stReqApply() {
+  if (!P || !P.req) return;
+  if (!stIsProd() || !stCanBuild()) { if (P.design && P.design.kind === 'bubble') { P.chosen = null; P.design = null; } return; }
+  if (P.chosen === 'B') { const ok = m2mConcepts(P.req).list.some(c => c.id === 'B');
+    if (!ok) { P.chosen = null; P.design = null; toast('요청서가 바뀌어 B안이 조건에 맞지 않게 되었습니다. 개념안을 다시 고르세요'); }
+    else { P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); } }
+}
+// 설계 전 단계에서 막혔을 때 보여 줄 안내
+function stPNeed() {
+  if (!stCanBuild()) return `<fieldset><legend>아직 이어지지 않아요</legend><p class="hint">요청서의 결과 효과에 맞는 기능 분해 템플릿이 아직 없어요 ${stB('none')}. 지금은 “비누방울”만 설계·시뮬레이션·제작까지 이어집니다.</p><div class="row"><button class="btn" data-go="1">요청서로 돌아가기</button></div></fieldset>`;
+  const K = m2mConcepts(P.req), b = K.list.find(c => c.built);
+  return `<fieldset><legend>먼저 개념안을 고르세요</legend><p class="hint">설계·시뮬레이션·제작은 고른 개념안으로 만듭니다.${b ? ` 지금 조건에서 끝까지 만들 수 있는 안은 <b>${b.id}안 ${escH(b.ko)}</b>입니다.` : ' 지금 조건(손힘만)에 맞는 안은 아직 비교까지만 됩니다(3D·치수 미구현).'}</p>
+    <div class="row">${b ? `<button class="btn primary" data-act="cpick" data-id="${b.id}">${b.id}안으로 설계 시작</button>` : ''}<button class="btn" data-go="2">개념안 보기</button><button class="btn" data-go="1">요청서 고치기</button></div></fieldset>`;
+}
 const BUB_IN = [['ringD', '링 지름', 'mm', 10, 50], ['rings', '링 개수', '개', 3, 10], ['wheelRpm', '링 바퀴 회전수', 'rpm', 10, 90], ['volt', '건전지 전압', 'V', 1.5, 6]];
-function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.bub[k] != null) p[k] = P.bub[k]; return bubbleDesign(p); }
+function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.bub[k] != null) p[k] = P.bub[k];
+  const sp = P.req && P.req.shape.value === 'gun' && P.req.shape.params || {}; if (sp.length) p.gunLen = sp.length.value; if (sp.gripAngle) p.gripAngle = sp.gripAngle.value;   // 요청서의 총 길이·손잡이 각도
+  return bubbleDesign(p); }
 function stUseBubble() { P.chosen = 'B'; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design))); }
 // 3. 개념안
 function stConcepts() {
+  if (!stCanBuild()) return stPNeed();
   const K = m2mConcepts(P.req), Dc = K.decomp, pw = P.req.power.value;
   const flow = Dc.funcs.map(f => `<tr><td>${escH(f.ko)}</td><td class="hint">${f.in ? escH(ST_FLOW[f.in] || f.in) : '—'} → ${f.out ? escH(ST_FLOW[f.out] || f.out) : '—'}</td><td>${f.cond === 'motor' ? '모터를 쓰면' : f.cond === 'hand' ? '손힘 기구가 있으면' : '항상'}</td></tr>`).join('');
   const card = (c, i) => `<div class="stCard${c.id && c.id === P.chosen ? ' on' : ''}">
@@ -33,18 +52,19 @@ function stConcepts() {
 }
 // 4. 설계 (B안)
 function stPDesign() {
-  if (!P.design || P.design.kind !== 'bubble') return '<p class="hint">먼저 개념안에서 B안을 고르세요.</p>';
+  if (!P.design || P.design.kind !== 'bubble') return stPNeed();
   const D = P.design, G = bubbleGeom(D), src = k => P.bub && P.bub[k] != null ? 'user' : 'default';
   const calc = [['링 중심 반지름', fmt(D.R, 1) + ' mm', '링 사이 살 4 mm, 허브와 3 mm 띄우는 최소값'], ['링 바퀴 지름', fmt(2 * G.wheelR, 0) + ' mm', ''], ['감속 기어', `z${D.z2} : z${D.z1} (m${D.m})`, `모터 ${fmt(D.motRpm, 0)} rpm ÷ 목표 ${D.wheelRpm} rpm에 가장 가까운 잇수`],
     ['바퀴 모터 회전수', fmt(D.motRpm, 0) + ' rpm ' + stB('assume'), `N20 300 rpm(6 V형)을 ${D.volt} V로: 전압 비례 × 부하 80% 어림`], ['팬 지름', fmt(2 * G.fanR, 0) + ' mm', '큰 기어 이끝과 2 mm 이상 띄움'], ['비누액 통', `액면 ${fmt(G.tray.level, 1)} mm (바퀴 축 기준)`, '맨 아래 링이 잠기도록']];
-  return `<fieldset><legend>B안 · 요구치로 설계</legend><p class="hint">값을 바꾸면 치수를 다시 역산하고 3D와 껍데기가 바로 바뀝니다.</p>
+  const sp = P.req.shape.value === 'gun' ? P.req.shape.params : null;
+  return `${sp ? `<fieldset><legend>요청서에서 온 값</legend><p class="hint">총 길이 ${D.gunLen} mm, 손잡이 각도 ${D.gripAngle}° ${srcB(sp.length.source)} · 바꾸려면 <button class="btn" data-go="1">요청서 고치기</button></p></fieldset>` : ''}<fieldset><legend>B안 · 요구치로 설계</legend><p class="hint">값을 바꾸면 치수를 다시 역산하고 3D와 껍데기가 바로 바뀝니다.</p>
     <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"> <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
   <fieldset><legend>계산된 치수 ${stB('calc')}</legend><div class="tblWrap"><table class="vt"><tbody>${calc.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td class="hint">${c}</td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="margin-top:8px"><button class="btn primary" data-go="4">시뮬레이션·검증으로</button></div></fieldset>`;
 }
 // 5. 시뮬레이션·검증
 function stPSim() {
-  if (!model || model.kind !== 'bubble') return '<p class="hint">먼저 설계를 만드세요.</p>';
+  if (!P.design || !model || model.kind !== 'bubble') return stPNeed();
   const V = model.verify || [], chk = model.checks.filter(c => /사이|겹치지|누릅니다/.test(c.txt));
   return `<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
     ${V.map(r => `<tr><td>${escH(r.ko)}</td><td>${r.want == null ? '—' : (r.key === 'wet_s' ? '< ' : r.key === 'dip' ? '> ' : r.key === 'air' ? '≥ ' : '') + fmt(r.want, 2) + ' ' + r.unit}</td><td>${fmt(r.got, 2)} ${r.unit}</td><td>${r.ok === true ? stB('ok') : r.ok === false ? stB('bad') : stB('calc')}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}</tbody></table></div>
@@ -63,7 +83,7 @@ function stPSim() {
 }
 // 6. 제작
 function stPMake() {
-  if (!model || model.kind !== 'bubble') return '<p class="hint">먼저 설계를 만드세요.</p>';
+  if (!P.design || !model || model.kind !== 'bubble') return stPNeed();
   return `<fieldset><legend>부품표</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부품</th><th>개수</th><th>메모</th></tr></thead><tbody>${model.bom.map(b => `<tr><td>${escH(b[0])}</td><td>${b[1]}</td><td class="hint">${escH(b[2] || '')}</td></tr>`).join('')}</tbody></table></div></fieldset>
   <fieldset><legend>조립 순서</legend><ol class="steps-ol">${model.steps.map(t => `<li>${escH(t)}</li>`).join('')}</ol></fieldset>
   <fieldset><legend>파일</legend><div class="row"><button class="btn primary" data-act="zip">STL 묶음 저장 (.zip)</button><button class="btn" data-act="saveProj">프로젝트 파일 저장</button></div>
@@ -74,10 +94,23 @@ function stPMake() {
 }
 $('stBody').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !P) return; const a = b.dataset.act;
-  if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
+  if (a === 'rqProd' && P.req) { P.req.kind = 'product'; stSave(); stRender(); }
+  else if (a === 'rqMotion' && P.req) { P.req.kind = 'motion'; stReqApply(); stStep = 1; stSave(); stRender(); }
+  else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
   else if (a === 'ptest') { P.tests = (P.tests || []).concat([{ at: new Date().toISOString(), result: b.dataset.v, ringD: P.design.ringD, wheelRpm: P.design.wheelRpm }]); stSave(); stRender(); }
   else if (a === 'zip' && P.design && P.design.kind === 'bubble') $('xHousing').checked = true;
 }, true);
+$('stBody').addEventListener('change', e => {
+  const el = e.target; if (!P || !P.req) return; const R = P.req;
+  if (el.dataset.rq || el.dataset.rqp || el.dataset.rqfx) {
+    if (el.dataset.rq === 'shape') R.shape = el.value ? m2mReqShape(el.value, 'user') : { value: null, source: 'missing' };
+    else if (el.dataset.rq === 'input') R.inputs = el.value ? [m2mReqInput(el.value, 'user')] : [];
+    else if (el.dataset.rq === 'power') R.power = el.value ? { value: el.value, source: 'user' } : { value: null, source: 'missing' };
+    else if (el.dataset.rqfx) { const k = el.dataset.rqfx; R.effects = R.effects.filter(x => x.kind !== k); if (el.checked) R.effects.push({ id: k, kind: k, source: 'user' }); }
+    else { const [g, k] = el.dataset.rqp.split(':'), v = parseFloat(el.value), lo = +el.dataset.lo, hi = +el.dataset.hi, o = g === 'shape' ? R.shape.params : R.inputs[0] && R.inputs[0].params;
+      if (!o || !o[k]) return; if (!(v >= lo && v <= hi)) { toast(`${(M2M_PNAME[k] || [k])[0]}은(는) ${lo}~${hi} 사이여야 합니다`); el.value = o[k].value; return; } o[k] = { value: v, source: 'user' }; }
+    stReqApply(); stLog('요청서 고침'); stSave(); stRender(); return; }
+});
 $('stBody').addEventListener('change', e => {
   const el = e.target, k = el.dataset.bp; if (!k || !P) return;
   const v = parseFloat(el.value), lo = +el.dataset.lo, hi = +el.dataset.hi;

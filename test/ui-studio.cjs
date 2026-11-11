@@ -28,7 +28,7 @@ const fs=require('fs'), NM=require('path').join(__dirname, '../node_modules/thre
   await p.click('#stSteps button[data-st="0"]'); await p.waitForTimeout(300); await p.click('button[data-act="new"]'); await p.waitForTimeout(300);
   await p.fill('#stText', '총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함'); await p.click('button[data-act="parse"]'); await p.waitForTimeout(500);
   const g1 = await p.evaluate(() => ({ card: /제품 요청서/.test(document.getElementById('stBody').innerText), rec: !!document.querySelector('button[data-act="toRec"]'), shape: P.req && P.req.shape.value }));
-  await p.click('button[data-act="pw"][data-v="battery"]'); await p.waitForTimeout(300); await shot(6);
+  await p.selectOption('select[data-rq="power"]', 'battery'); await p.waitForTimeout(300); await p.waitForTimeout(300); await shot(6);
   const pw = await p.evaluate(() => P.req && P.req.power.value);
   const sw = await p.evaluate(() => document.documentElement.scrollWidth);
   const bad = []; if (r1.r !== 25 || r1.chosen !== 'slider') bad.push('행정 50 → 크랭크 25가 아님'); if (!rows.some(r => /행정.*50 mm.*50 mm.*검사 통과/.test(r))) bad.push('검증 표');

@@ -1,7 +1,7 @@
 // ---- 제품 요청서 (G1): 모양 · 사람 입력 · 결과 효과 · 수치 · 제약 ----
 // "움직임 하나"가 아니라 제품 하나를 말하는 문장을 다섯 칸으로 나눔. 규칙만 씀(AI 없이도 같은 결과).
 const M2M_SHAPES = {
-  gun: ['총 모양', /총|권총|gun|pistol|blaster/i, { length: 200, height: 150, width: 50, gripAngle: 105 }],
+  gun: ['총 모양', /총|권총|gun|pistol|blaster/i, { length: 130, gripAngle: 105 }],
   box: ['상자 모양', /상자|박스|케이스|box|case/i, { length: 150, height: 100, width: 100 }],
   tube: ['원통 모양', /원통|통 ?모양|병|캔|cylinder|tube|bottle/i, { length: 150, diameter: 60 }],
   figure: ['인형·캐릭터', /인형|로봇|캐릭터|동물|새 ?모양|figure|doll|robot/i, { length: 120, height: 180, width: 80 }],
@@ -27,7 +27,9 @@ const M2M_EFFECTS = {
 };
 function m2mRequest(text) {
   const t = String(text || ''), S = m2mParse(t), pick = (tbl) => { for (const [k, v] of Object.entries(tbl)) if (v[1].test(t)) return k; return null; };
-  const shape = pick(M2M_SHAPES), input = pick(M2M_INPUTS);
+  // 모양은 '○○ 모양/형상/형태/처럼 생긴'이나 그 자체로 제품인 낱말(권총·물총·인형·로봇)일 때만. "상자를 밀어"의 상자는 모양이 아님
+  const SHAPE_STRONG = { gun: /권총|물총|장난감 ?총|pistol|blaster/i, figure: /인형|로봇|doll|robot/i };
+  const shape = Object.keys(M2M_SHAPES).find(k => SHAPE_STRONG[k] && SHAPE_STRONG[k].test(t) || new RegExp('(' + M2M_SHAPES[k][1].source + ')\\s*(?:의\\s*)?(?:모양|형상|형태|처럼 ?생긴|같이 ?생긴)', 'i').test(t)) || null, input = pick(M2M_INPUTS);
   const effects = Object.entries(M2M_EFFECTS).filter(([, v]) => v[1].test(t)).map(([k]) => ({ id: k, kind: k, source: 'user' }));
   if (S.motion.value) effects.push({ id: 'motion', kind: 'motion', motion: S.motion.value, source: S.motion.source });
   // 비누방울·물총은 '나가다/나오다'가 효과를 뜻함 → 밀기 목적으로 잘못 읽은 것을 되돌림
@@ -46,6 +48,8 @@ function m2mRequest(text) {
   return R;
 }
 // 제품 요청서에서 아직 모르는 것 → 질문 (값을 멋대로 채우지 않음)
+function m2mReqShape(k, source) { return { value: k, source, params: Object.fromEntries(Object.entries(M2M_SHAPES[k][2]).map(([p, v]) => [p, { value: v, source: 'default' }])) }; }
+function m2mReqInput(k, source) { return { id: k, kind: k, source, params: Object.fromEntries(Object.entries(M2M_INPUTS[k][2]).map(([p, v]) => [p, { value: v, source: 'default' }])) }; }
 function m2mRequestQuestions(R) {
   if (R.kind !== 'product') return [];
   const q = [];
@@ -56,3 +60,5 @@ function m2mRequestQuestions(R) {
   return q;
 }
 const M2M_PNAME = { length: ['길이', 'mm'], height: ['높이', 'mm'], width: ['폭', 'mm'], diameter: ['지름', 'mm'], gripAngle: ['손잡이 각도', '°'], stroke_mm: ['행정', 'mm'], force_N: ['힘', 'N'], rpm: ['회전수', 'rpm'] };
+// 요청서 칸을 고칠 때 허용 범위 (모양·입력 치수)
+const M2M_PRANGE = { length: [60, 400], height: [40, 400], width: [20, 300], diameter: [20, 300], gripAngle: [95, 115], stroke_mm: [2, 80], force_N: [1, 60], rpm: [5, 200] };
