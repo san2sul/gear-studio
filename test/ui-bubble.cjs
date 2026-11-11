@@ -36,6 +36,21 @@ const fs = require('fs'), path = require('path'), NM = path.join(__dirname, '../
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 20000 }).catch(() => null), p.click('button[data-act="zip"]')]);
     let zipN = 0; if (dl) { const f = OUT + `bub_${W}.zip`; await dl.saveAs(f); const buf = fs.readFileSync(f); zipN = (buf.toString('latin1').match(/PK\x01\x02/g) || []).length;
       const names = buf.toString('utf8').match(/(parts|housing)\/[A-Za-z0-9_]+\.stl/g) || []; if (!names.some(n => /H1_head_body/.test(n)) || !names.some(n => /P1_ring_wheel/.test(n))) bad.push('zip 내용'); } else bad.push('zip 저장 안 됨');
+    // 작동 준비도와 원리 시험편: 시험편 zip(파일 5개), 결과 기록 → 준비도 미달 → 잘 된 값으로 설계 바꾸기
+    const rd0 = await p.evaluate(() => ({ ready: !!document.getElementById('stReady'), lbl: bubbleReadiness(P.design, model, P.ptest, P.tests).label }));
+    if (!rd0.ready || rd0.lbl !== '움직이는 모형까지') bad.push('작동 준비도 ' + JSON.stringify(rd0));
+    const [dl2] = await Promise.all([p.waitForEvent('download', { timeout: 20000 }).catch(() => null), p.click('button[data-act="ptKit"]')]);
+    if (dl2) { const f = OUT + `bub_test_${W}.zip`; await dl2.saveAs(f); const n = (fs.readFileSync(f).toString('latin1').match(/PK\x01\x02/g) || []).length; if (n !== 5) bad.push('시험편 zip 파일 수 ' + n); } else bad.push('시험편 zip 저장 안 됨');
+    const dA = await p.evaluate(() => bubbleTestKit(P.design).dA), dD = await p.evaluate(() => P.design.ringD);
+    await p.selectOption(`select[data-pt="A:${dD}"]`, 'no'); await p.waitForTimeout(300); await p.selectOption(`select[data-pt="A:${dA[0]}"]`, 'ok'); await p.waitForTimeout(300);
+    await p.selectOption('select[data-pt="B:3.2"]', 'ok'); await p.waitForTimeout(300); await p.selectOption('select[data-pt="dist"]', '10'); await p.waitForTimeout(300);
+    await p.evaluate(() => document.getElementById('stPTest').scrollIntoView()); await shot('5t');
+    const rd1 = await p.evaluate(() => bubbleReadiness(P.design, model, P.ptest, P.tests).rows.filter(r => r.gate === 2).map(r => r.state).join());
+    if (rd1 !== 'bad,test,ok') bad.push('원리 시험 판정 ' + rd1);
+    await p.click('button[data-act="ptApply"]'); await p.waitForTimeout(1500);
+    const rd2 = await p.evaluate(() => ({ d: design.ringD, t: design.wheelT, g2: bubbleReadiness(P.design, model, P.ptest, P.tests).rows.filter(r => r.gate === 2).map(r => r.state).join(), badC: model.checks.filter(c => c.st === 'bad').map(c => c.txt) }));
+    if (rd2.d !== dA[0] || rd2.t !== 3.2 || rd2.g2 !== 'ok,ok,ok' || rd2.badC.length) bad.push('시험값 반영 ' + JSON.stringify(rd2));
+    await p.evaluate(() => { P.ptest = null; P.bub = {}; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); stRender(); }); await p.waitForTimeout(800);
     // 추가 항목: 링 지름 30(설계 입력), 전체 길이 ≤ 100(미달이어야), 직접 쓴 항목(미검증)
     await p.click('#stSteps button[data-st="1"]'); await p.waitForTimeout(400);
     await p.evaluate(() => { document.querySelector('#stBody details summary') && [...document.querySelectorAll('#stBody details')].forEach(d => d.open = true); });

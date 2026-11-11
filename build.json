@@ -32,6 +32,7 @@
     "src/studio/core.js",
     "src/studio/product.js",
     "src/products/bubble.js",
+    "src/products/bubble-test.js",
     "src/studio/dialog.js",
     "src/mechanisms/train.js",
     "src/ui/between.html",

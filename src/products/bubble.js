@@ -91,6 +91,12 @@ function bubbleDesign(p = {}) {
   const z2 = Math.max(Q.z1 + 4, Math.round(Q.z1 * motRpm / Q.wheelRpm));
   return { version: 1, kind: 'bubble', concept: 'B', ...Q, R, ro, motRpm, z2, box: null };
 }
+// 팬: 날개 4장, 두께 4.5 mm, 50° 비틀림, 축 구멍 1.9 mm (130 모터 축 2 mm에 끼움)
+function bubbleFanTris(fanR) {
+  const fanOut = []; for (let k = 0; k < 4; k++) { const c = k * PI / 2; for (let i = 0; i <= 8; i++) { const a = c - 0.32 + 0.64 * i / 8; fanOut.push([fanR * Math.cos(a), fanR * Math.sin(a)]); } fanOut.push([4 * Math.cos(c + 0.9), 4 * Math.sin(c + 0.9)]); }
+  return gearExtrude({ b: 4.5, _outline: fanOut, _twist: z => z / 4.5 * 50 * D2R, _step: 4 }, [circlePts(0.95, 20)]);
+}
+const BUB_FAN_DIST = 10;   // 팬 앞면(x −10)에서 링 바퀴 가운데 면(x 0)까지 mm
 function bubbleGeom(D) {
   const W = D.wall, R = D.R, wheelR = R + D.ro, a = D.m * (D.z1 + D.z2) / 2, ra2 = D.m * (D.z2 / 2 + 1), ra1 = D.m * (D.z1 / 2 + 1);
   const pin = [-a * Math.SQRT1_2, a * Math.SQRT1_2];   // 피니언(바퀴 모터) 위치 (y, z): 왼쪽 위 45°
@@ -130,8 +136,7 @@ function bubbleModel(D) {
   model.parts.push({ name: '큰 기어', file: `P2_gear_m${D.m}_z${D.z2}`, tris: gearExtrude(g2, [bore(3)]), motion: t => XF.mul(BX(-14), XF.Rz(phi + PI + PI / D.z2 - w2 * t)) });
   model.parts.push({ name: '피니언', file: `P3_pinion_m${D.m}_z${D.z1}`, tris: gearExtrude(g1, [borePts(3, 0.5)]), motion: t => XF.mul(BX(-14, G.pin[0], G.pin[1]), XF.Rz(phi + wMot * t)) });
   // 4 팬: 날개 4장, 높이 4.5 mm 동안 50° 비틀림
-  const fanOut = []; for (let k = 0; k < 4; k++) { const c = k * PI / 2; for (let i = 0; i <= 8; i++) { const a = c - 0.32 + 0.64 * i / 8; fanOut.push([G.fanR * Math.cos(a), G.fanR * Math.sin(a)]); } fanOut.push([4 * Math.cos(c + 0.9), 4 * Math.sin(c + 0.9)]); }
-  model.parts.push({ name: '팬', file: `P4_fan_d${fmt(2 * G.fanR, 0)}`, tris: gearExtrude({ b: 4.5, _outline: fanOut, _twist: z => z / 4.5 * 50 * D2R, _step: 4 }, [circlePts(0.95, 20)]), motion: t => XF.mul(BX(-14.5, 0, R), XF.Rz(wFan * t)) });
+  model.parts.push({ name: '팬', file: `P4_fan_d${fmt(2 * G.fanR, 0)}`, tris: bubbleFanTris(G.fanR), motion: t => XF.mul(BX(-14.5, 0, R), XF.Rz(wFan * t)) });
   // 5 비누액 통: 바닥 + 벽 (위가 열림)
   const trayIn = rectPts(T.x0 + W, -T.y + W, T.x1 - W, T.y - W), trayOut = rectPts(T.x0, -T.y, T.x1, T.y);
   const trayTris = moveTris(extrudeTris(trayOut, [], 2), 0, 0, T.zBot).concat(moveTris(extrudeTris(trayOut, [trayIn], T.zTop - T.zBot - 2), 0, 0, T.zBot + 2));
@@ -197,7 +202,7 @@ function bubbleModel(D) {
   const fanRpm = wFan * 60 / 2 / PI;
   // 부위별 동작: 요청서의 부위와 잇는 3D 부품의 실제 움직임 (계산값)
   model.partMotion = { trigger: { kind: 'linear', stroke_mm: 2 }, wheel: { kind: 'rotate', rpm: wheelGot }, fan: { kind: 'rotate', rpm: fanRpm }, muzzle: { kind: null }, grip: { kind: null }, body: { kind: null }, tray: { kind: null } };
-  model.measures = { muzzleD: D.muzzleD, trigStroke: 2, gripAngle: D.gripAngle, gunLen: hb.hi[0] - hb.lo[0], rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
+  model.measures = { fanDist: BUB_FAN_DIST, muzzleD: D.muzzleD, trigStroke: 2, gripAngle: D.gripAngle, gunLen: hb.hi[0] - hb.lo[0], rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
   // ---- G6 부품표와 조립 순서 ----
   model.bom = [['링 바퀴(출력)', 1, `링 ${D.rings}개 × 지름 ${D.ringD} mm`], ['큰 기어 z' + D.z2 + '(출력)', 1, 'm' + D.m], ['피니언 z' + D.z1 + '(출력)', 1, 'D컷 3 mm'], ['팬(출력)', 1, '지름 ' + fmt(2 * G.fanR, 0) + ' mm'],
     ['비누액 통(출력)', 1, `약 ${fmt((T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, 0)} mL, PETG 권장`], ['방아쇠(출력)', 1, ''], ['머리 몸체·앞 덮개(출력)', 2, ''], ['몸통 반쪽(출력)', 2, ''],

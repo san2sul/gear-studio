@@ -75,6 +75,7 @@ function stPNeed() {
 }
 const BUB_IN = [['ringD', '링 지름', 'mm', 10, 50], ['rings', '링 개수', '개', 3, 10], ['wheelRpm', '링 바퀴 회전수', 'rpm', 10, 90], ['volt', '건전지 전압', 'V', 1.5, 6]];
 function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.bub[k] != null) p[k] = P.bub[k];
+  if (P.bub && P.bub.wheelT != null) p.wheelT = P.bub.wheelT;   // 원리 시험에서 고른 판 두께
   for (const x of (P.req && P.req.extra) || []) { const v = +x.value; if (!isFinite(v) || !M2M_EXTRA[x.key]) continue;   // 요청서 추가 항목 중 설계 입력
     if (x.key === 'ringD' && v >= 10 && v <= 50) p.ringD = v; if (x.key === 'rings' && v >= 3 && v <= 10) p.rings = Math.round(v); }
   const rate = ((P.req && P.req.extra) || []).find(x => x.key === 'rate' && +x.value > 0);
@@ -127,7 +128,7 @@ function stPDesign() {
 function stPSim() {
   if (!P.design || !model || model.kind !== 'bubble') return stPNeed();
   const V = model.verify || [], chk = model.checks.filter(c => /사이|겹치지|누릅니다/.test(c.txt));
-  return `<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
+  return `${stReadyCard()}<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
     ${V.map(r => `<tr><td>${escH(r.ko)}</td><td>${r.want == null ? '—' : (r.key === 'wet_s' ? '< ' : r.key === 'dip' ? '> ' : r.key === 'air' ? '≥ ' : '') + fmt(r.want, 2) + ' ' + r.unit}</td><td>${fmt(r.got, 2)} ${r.unit}</td><td>${r.ok === true ? stB('ok') : r.ok === false ? stB('bad') : stB('calc')}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}</tbody></table></div>
     <p class="hint">“막이 5초 안에 마르지 않는다”와 바퀴 모터 회전수는 가정값입니다.</p></fieldset>
   ${(P.req.extra || []).length ? `<fieldset><legend>요청서 추가 항목</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과</th><th>상태</th><th>방법</th></tr></thead><tbody>
@@ -155,10 +156,47 @@ function stPartsSim() {
   return `<fieldset><legend>부위별 사양과 동작</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부위</th><th>항목</th><th>요구</th><th>결과(3D)</th><th>상태</th><th>방법</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="hint">치수는 1%, 회전수는 5%(기어 잇수가 정수라서) 안이면 맞음으로 봅니다. 언제 움직이는지(“당기는 동안”)는 기록만 하고 확인하지 않습니다 ${stB('unv')}.</p></fieldset>`;
 }
+// ---- 작동 준비도 (관문 6개) ----
+const ST_GATES = { 1: '요청서', 2: '원리 시험', 3: '공학 계산', 4: '상세 설계', 5: '검증', 6: '시제품 시험' };
+const stRS = st => st === 'test' ? stBadge('assume', '실험 필요') : stB(st);
+function stReadyCard(compact) {
+  const Rd = bubbleReadiness(P.design, model, P.ptest, P.tests), cnt = s => Rd.rows.filter(r => r.state === s).length;
+  const rows = Object.entries(ST_GATES).map(([g, ko]) => { const G = Rd.rows.filter(r => r.gate === +g), st = G.every(r => r.state === 'ok') ? 'ok' : G.some(r => r.state === 'bad') ? 'bad' : G.some(r => r.state === 'test') ? 'test' : 'none';
+    return compact ? `<tr><td>${g}. ${ko}</td><td>${stRS(st)}</td><td class="hint">${G.filter(r => r.state !== 'ok').length ? G.filter(r => r.state !== 'ok').length + '개 남음' : '통과'}</td></tr>`
+      : `<tr><th colspan="3">${g}. ${ko} ${stRS(st)}</th></tr>${G.map(r => `<tr><td>${escH(r.item)}</td><td>${stRS(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}`; }).join('');
+  return `<fieldset id="stReady"><legend>작동 준비도</legend><p class="hint">지금 판정: <b>${Rd.label}</b> · 통과 ${cnt('ok')} · 미달 ${cnt('bad')} · 실험 필요 ${cnt('test')} · 앱에 아직 없음 ${cnt('none')}</p>
+    <p class="hint">작동하는 제품이 되려면 관문 6개를 모두 통과해야 합니다. 계산으로 알 수 없는 것은 “실험 필요”, 앱이 아직 하지 않는 것은 “미구현”으로 남겨 둡니다.</p>
+    <div class="tblWrap"><table class="vt"><tbody>${rows}</tbody></table></div></fieldset>`;
+}
+// ---- 관문 2: 원리 시험편 ----
+const ST_PT = [['', '안 해 봄'], ['ok', '잘 나옴'], ['few', '조금 나옴'], ['no', '안 나옴']];
+function stPTestCard() {
+  const K = bubbleTestKit(P.design), T = P.ptest || {}, B = bubbleTestBest(T), sel = (key, v) => `<select data-pt="${key}">${ST_PT.map(([k, l]) => `<option value="${k}"${(v || '') === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  const chg = B && ((B.ringD && B.ringD !== P.design.ringD) || (B.wheelT && B.wheelT !== P.design.wheelT));
+  return `<fieldset id="stPTest"><legend>먼저: 원리 시험편 ${stBadge('assume', '실험')}</legend>
+    <p class="hint">비누막이 생겨 방울이 되는지는 계산으로 알 수 없어요. 시험편 4개(출력 약 1시간, 서포트 없음)로 먼저 확인하고, 잘 된 값으로 설계를 맞춘 뒤 본체를 출력하세요.</p>
+    <div class="row"><button class="btn primary" data-act="ptKit">원리 시험편 저장 (.zip)</button></div>
+    <ol class="steps-ol"><li>팬을 130 모터 축에 끼우고, 모터를 시험대 받침에 올려 고무줄로 묶습니다.</li><li>비누액(물 10 : 주방세제 1, 설탕 조금)에 링 막대를 담갔다 꺼내 거리 홈(${K.dists.join(' / ')} mm)에 세웁니다.</li><li>모터에 건전지 2개(3 V)를 잇고, 구멍마다 방울이 나오는지 봅니다. 막대를 옆으로 밀어 다른 구멍으로 바꿉니다.</li><li>아래 표에 결과를 고릅니다.</li></ol>
+    <div class="tblWrap"><table class="vt"><thead><tr><th>시험</th><th>값</th><th>결과</th></tr></thead><tbody>
+      ${K.dA.map(d => `<tr><td>막대 A · 구멍 지름</td><td>${d} mm${d === P.design.ringD ? ' (설계)' : ''}</td><td>${sel('A:' + d, T.A && T.A[d])}</td></tr>`).join('')}
+      ${K.tB.map(t => `<tr><td>막대 B · 판 두께</td><td>${t} mm${t === P.design.wheelT ? ' (설계)' : ''}</td><td>${sel('B:' + t, T.B && T.B[t])}</td></tr>`).join('')}
+      <tr><td>가장 잘 된 거리</td><td>팬 앞면 → 막대</td><td><select data-pt="dist"><option value="">안 해 봄</option>${K.dists.map(d => `<option value="${d}"${+T.dist === d ? ' selected' : ''}>${d} mm${d === BUB_FAN_DIST ? ' (설계)' : ''}</option>`).join('')}</select></td></tr></tbody></table></div>
+    ${B && (B.ringD || B.wheelT || B.dist) ? `<p class="hint">가장 잘 된 값: ${[B.ringD ? `구멍 ${B.ringD} mm` : '', B.wheelT ? `두께 ${B.wheelT} mm` : '', B.dist ? `거리 ${B.dist} mm` : ''].filter(Boolean).join(', ')}${B.dist && B.dist !== BUB_FAN_DIST ? ` · 팬 거리는 아직 설계에서 바꿀 수 없어요 ${stB('none')}` : ''}</p>` : ''}
+    ${chg ? `<div class="row"><button class="btn" data-act="ptApply">시험에서 잘 된 값으로 설계 바꾸기</button></div>` : ''}</fieldset>`;
+}
+function stPTestZip() {
+  const K = bubbleTestKit(P.design), files = K.parts.map(p => { const b = trisBounds(p.tris); return { name: `${p.file}.stl`, data: stlBinary(moveTris(p.tris, 0, 0, -b.lo[2]), p.name) }; });
+  const txt = ['원리 시험편 (비누방울 총 B안, 링 ' + P.design.ringD + ' mm)', '', ...K.parts.map(p => `- ${p.file}.stl : ${p.name}`), '',
+    '시험 방법', '1. 팬(T4)을 130 모터 축에 끼우고 모터를 시험대(T3) 받침에 올려 고무줄로 묶는다.', `2. 비누액(물 10 : 주방세제 1, 설탕 조금)에 링 막대를 담갔다 꺼내 거리 홈(${K.dists.join(', ')} mm)에 세운다.`,
+    '3. 모터에 AA 건전지 2개(3 V)를 잇고 구멍마다 방울이 나오는지 본다. 막대를 옆으로 밀어 구멍을 바꾼다.', '4. 결과(잘 나옴 / 조금 / 안 나옴)를 앱의 제작 단계 표에 기록한다.', '',
+    `막대 A 구멍 지름: ${K.dA.join(', ')} mm (두께 ${P.design.wheelT} mm)`, `막대 B 판 두께: ${K.tB.join(', ')} mm (구멍 ${P.design.ringD} mm)`, `설계의 팬 거리: ${BUB_FAN_DIST} mm`].join('\r\n');
+  files.push({ name: '시험방법.txt', data: new TextEncoder().encode(txt) });
+  saveFile(`bubble_principle_test_ring${P.design.ringD}.zip`, makeZip(files)); stLog('원리 시험편 저장');
+}
 // 6. 제작
 function stPMake() {
   if (!P.design || !model || model.kind !== 'bubble') return stPNeed();
-  return `<fieldset><legend>부품표</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부품</th><th>개수</th><th>메모</th></tr></thead><tbody>${model.bom.map(b => `<tr><td>${escH(b[0])}</td><td>${b[1]}</td><td class="hint">${escH(b[2] || '')}</td></tr>`).join('')}</tbody></table></div></fieldset>
+  return `${stReadyCard(true)}${stPTestCard()}<fieldset><legend>부품표</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부품</th><th>개수</th><th>메모</th></tr></thead><tbody>${model.bom.map(b => `<tr><td>${escH(b[0])}</td><td>${b[1]}</td><td class="hint">${escH(b[2] || '')}</td></tr>`).join('')}</tbody></table></div></fieldset>
   <fieldset><legend>조립 순서</legend><ol class="steps-ol">${model.steps.map(t => `<li>${escH(t)}</li>`).join('')}</ol></fieldset>
   <fieldset><legend>파일</legend><div class="row"><button class="btn primary" data-act="zip">STL 묶음 저장 (.zip)</button><button class="btn" data-act="saveProj">프로젝트 파일 저장</button></div>
     <p class="hint">출력 부품 6종과 껍데기 4조각(머리 몸체, 앞 덮개, 몸통 왼쪽·오른쪽 반)이 출력 방향으로 눕혀져 들어 있습니다. 통과 바퀴는 물에 닿으니 PETG를 권장합니다.</p></fieldset>
@@ -183,6 +221,11 @@ $('stBody').addEventListener('click', e => {
   else if (a === 'rqMotion' && P.req) { P.req.kind = 'motion'; stReqApply(); stStep = 1; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id) { P.chosen = b.dataset.id; P.design = null; const c = stChosenC(); stLog('개념안 선택: ' + (c ? (c.id ? c.id + '안 ' : '') + c.ko : P.chosen)); toast('골랐어요. 이 안은 아직 3D 설계가 없어 비교 정보만 이어집니다'); stSave(); stRender(); }
+  else if (a === 'ptKit' && P.design) stPTestZip();
+  else if (a === 'ptApply' && P.design) { const B = bubbleTestBest(P.ptest); P.bub = { ...(P.bub || {}) };
+    if (B.ringD) { P.bub.ringD = B.ringD; if (P.req && m2mSlotGet(P.req, 'ringD')) m2mSlotSet(P.req, 'ringD', B.ringD, 'test'); P.req.extra = (P.req.extra || []).filter(x => x.key !== 'ringD'); }
+    if (B.wheelT) P.bub.wheelT = B.wheelT;
+    P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); stLog('원리 시험 결과를 설계에 반영'); toast('시험에서 잘 된 값으로 설계를 다시 계산했습니다'); stSave(); stRender(); }
   else if (a === 'ptest') { P.tests = (P.tests || []).concat([{ at: new Date().toISOString(), result: b.dataset.v, ringD: P.design.ringD, wheelRpm: P.design.wheelRpm }]); stSave(); stRender(); }
   else if (a === 'zip' && P.design && P.design.kind === 'bubble') $('xHousing').checked = true;
 }, true);
@@ -191,6 +234,9 @@ $('stBody').addEventListener('change', e => {
   if (el.dataset.rx) { const [i, f] = el.dataset.rx.split(':'), x = R.extra && R.extra[+i]; if (!x) return; const E = M2M_EXTRA[x.key];
     if (f === 'value' && E) { const v = parseFloat(el.value); if (el.value.trim() !== '' && !(v >= E.range[0] && v <= E.range[1])) { toast(`${E.ko}은(는) ${E.range[0]}~${E.range[1]} ${E.unit} 사이여야 합니다`); el.value = x.value; return; } x.value = el.value.trim() === '' ? '' : v; }
     else x[f] = el.value; stReqApply(); stLog('요청서 추가 항목'); stSave(); stRender(); return; }
+  if (el.dataset.pt) { const [g, k] = el.dataset.pt.split(':'); P.ptest = P.ptest || {};
+    if (g === 'dist') P.ptest.dist = el.value ? +el.value : null; else { P.ptest[g] = { ...(P.ptest[g] || {}) }; if (el.value) P.ptest[g][k] = el.value; else delete P.ptest[g][k]; }
+    stLog('원리 시험 기록'); stSave(); stRender(); return; }
   if (el.dataset.pp || el.dataset.ps || el.dataset.pm) { const PT = R.parts || [];
     if (el.dataset.pp) { const [pi, f] = el.dataset.pp.split(':'), pt = PT[+pi]; if (!pt) return; pt[f] = f === 'name' ? el.value.trim() || pt.name : el.value; pt.source = 'user'; }
     else if (el.dataset.ps) { const [pi, si, f] = el.dataset.ps.split(':'), x = PT[+pi] && PT[+pi].specs[+si]; if (!x) return; const E = M2M_PSPEC[x.key];
