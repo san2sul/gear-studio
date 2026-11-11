@@ -83,6 +83,7 @@ function stDefine() {
     <div class="row"><button class="btn primary" data-act="parse">글 해석하기</button>${stAI ? `<button class="btn" data-act="ai"${stBusy ? ' disabled' : ''}>${stBusy ? 'AI가 읽는 중…' : 'AI로 해석하기'}</button>` : ''}</div>
     <p class="hint">${stAI ? '“글 해석하기”는 낱말과 숫자만 읽습니다. “AI로 해석하기”는 문장의 뜻까지 읽지만, 결과는 AI 추정으로 표시되니 확인하세요.' : '낱말과 숫자·단위를 읽어 명세서를 만듭니다. (이 화면에서는 AI 해석을 쓸 수 없습니다)'}</p>
   </fieldset>
+  ${stChatCard()}
   ${P.req ? stReqCard(P.req) : ''}
   ${stIsProd() ? '<details><summary>움직임 하나만 따로 설계하기</summary>' : ''}<fieldset><legend>${stIsProd() ? '제품 안의 움직임 하나 고르기' : '움직임의 종류'}</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
     ${mo ? `<p class="hint">고른 것: <b>${M2M_MOTIONS[mo].ko}</b> ${srcB(S.motion.source)}</p>` : ''}</fieldset>
@@ -194,7 +195,7 @@ Text: ${JSON.stringify(text)}`;
     if (R.kind !== 'product' && (r.kind === 'product' || R.shape.value || R.inputs.length || R.effects.some(e => e.kind !== 'motion'))) R.kind = 'product';
     stLog('AI 해석'); if (r.note) toast('AI: ' + String(r.note).slice(0, 140));
   } catch (e) { toast(e && e.code === 'not_granted' ? 'AI 사용을 허락하지 않아 글 해석만 씁니다' : 'AI 해석에 실패해 글 해석만 씁니다'); }
-  P.spec = S; P.req = R; stReqApply();
+  P.spec = S; P.req = R; stReqApply(); stChatStart();
   stBusy = false; stRec = null; stSave(); stRender();
 }
 $('modeEasy').onclick = () => selectTab('studio');
@@ -208,12 +209,12 @@ $('stBody').addEventListener('click', e => {
   if (b.dataset.mo) { P.spec.motion = { value: b.dataset.mo, source: 'user' }; stRec = null; stSave(); return stRender(); }
   const a = b.dataset.act, id = b.dataset.id;
   if (a === 'new') { stOpen(stNew()); }
-  else if (a === 'ex') { const [n, t] = ST_EX[+b.dataset.i]; stOpen(stNew(n, t)); }
+  else if (a === 'ex') { const [n, t] = ST_EX[+b.dataset.i], Q = stNew(n, t); P = Q; stChatStart(); stOpen(Q); }
   else if (a === 'open') { const Q = stLS.get('m2m.p.' + id, null); if (Q) stOpen(Q); else toast('프로젝트를 찾지 못했습니다'); }
   else if (a === 'dup') { const Q = stLS.get('m2m.p.' + id, null); if (Q) { const N = { ...JSON.parse(JSON.stringify(Q)), id: stNew().id, name: Q.name + ' 사본' }; P = N; stSave(); P = null; stRender(); } }
   else if (a === 'del') { if (!confirm('이 프로젝트를 지울까요?')) return; stLS.del('m2m.p.' + id); stLS.set(ST_KEY, stLS.get(ST_KEY, []).filter(x => x.id !== id)); if (P && P.id === id) P = null; stRender(); }
   else if (a === 'openFile') $('stFile').click();
-  else if (a === 'parse') { const t = $('stText').value; const R = m2mRequest(t), S = R.spec; if (!S.motion.value && P.spec.motion.value) S.motion = P.spec.motion; P.spec = S; delete R.spec; P.req = R; stReqApply(); stLog('글 해석'); stRec = null; stSave(); stRender(); if (R.kind === 'product') toast('제품 요청으로 읽었습니다. 요청서를 확인하세요'); else if (!S.motion.value) toast('움직임 종류를 알아내지 못했습니다. 아래 카드에서 고르세요'); }
+  else if (a === 'parse') { const t = $('stText').value; const R = m2mRequest(t), S = R.spec; if (!S.motion.value && P.spec.motion.value) S.motion = P.spec.motion; P.spec = S; delete R.spec; P.req = R; stReqApply(); stChatStart(); stLog('글 해석'); stRec = null; stSave(); stRender(); if (R.kind === 'product') toast('제품 요청으로 읽었습니다. 요청서를 확인하세요'); else if (!S.motion.value) toast('움직임 종류를 알아내지 못했습니다. 아래 카드에서 고르세요'); }
   else if (a === 'pw' && P.req) { P.req.power = { value: b.dataset.v, source: 'user' }; stReqApply(); stSave(); stRender(); }
   else if (a === 'ai') stAIParse();
   else if (a === 'toRec') { stGo(2); }

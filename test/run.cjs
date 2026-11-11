@@ -179,4 +179,22 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(C.m2mMotionEval(P('grip'), { kind: 'rotate', traits: {} }, M).state === 'bad' && C.m2mMotionEval(P('grip'), { kind: 'none', traits: {} }, M).state === 'ok', '부위: 고정 부위');
   ok(C.m2mMotionEval({ name: '뚜껑', link: '' }, { kind: 'swing', traits: {} }, M).state === 'unv', '부위: 3D와 잇지 않은 부위는 미검증');
   const big = C.buildModel(C.bubbleDesign({ muzzleD: 60 })); ok(big.checks.some(c => c.st === 'bad' && /총구/.test(c.txt)), '부위: 총구가 너무 크면 검사 실패'); }
+{ // 16. 대화로 요청서 완성: 규칙 추출기·완성도·배운 표현
+  const long = C.m2mRequest('권총 모양 비누방울 장난감. 링 지름 3cm, 링 8개, 1초에 5번, 전체 길이 150mm, 손잡이 100도, 비누액 50mL 이상, 건전지 사용, 무게 300g 이하');
+  const g = k => (C.m2mSlotGet(long, k) || {}).value;
+  ok(g('ringD') === 30 && g('rings') === 8 && g('rate') === 5 && g('gunLen') === 150 && g('gripAngle') === 100 && g('liquid') === 50 && g('weight') === 300, `대화: 긴 글에서 수치 읽기 ${['ringD', 'rings', 'rate', 'gunLen', 'gripAngle', 'liquid', 'weight'].map(g)}`);
+  ok(C.m2mReqMissing(long).join() === 'inputs', '대화: 남은 칸은 사람 입력뿐 ' + C.m2mReqMissing(long));
+  const R = C.m2mRequest('총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함'), pr = C.m2mReqProgress(R);
+  ok(pr.total === 8 && pr.done === 3 && C.m2mReqMissing(R)[0] === 'power', `대화: 완성도 ${JSON.stringify(pr)}`);
+  const ans = (t, k) => C.m2mApplyFound(R, C.m2mExtract(t, R, k), 'user').map(f => f.slot + '=' + f.value).join();
+  ok(ans('건전지 써도 돼요', 'power') === 'power=battery' && ans('30', 'ringD') === 'ringD=30' && ans('15센티 정도', 'gunLen') === 'gunLen=150' && ans('넉넉히 40ml', 'liquid') === 'liquid=40', '대화: 짧은 답을 물은 칸에 넣기');
+  ok(C.m2mExtract('3초마다 40mm 밀기', R, null).length === 0, '대화: 초·관계없는 숫자는 읽지 않음');
+  const out = C.m2mExtract('링 지름 80mm', R, null); ok(out[0] && out[0].err && C.m2mApplyFound(R, out, 'user').length === 0, '대화: 범위 밖은 넣지 않음');
+  // AI가 채운 표현을 배우면 다음부터 규칙이 읽음 (값은 AI 추정으로 표시)
+  const L = C.m2mLearn([], '방울은 큼직하게 해줘', [{ slot: 'ringD', value: 35, phrase: '큼직하게', how: 'ai' }], []);
+  ok(L.added.length === 1, '대화: 표현 배우기');
+  const R2 = C.m2mRequest('총 모양 비누방울'), f2 = C.m2mExtract('방울은 큼직하게', R2, null, L.lex); C.m2mApplyFound(R2, f2, 'user');
+  ok((C.m2mSlotGet(R2, 'ringD') || {}).value === 35 && C.m2mSlotGet(R2, 'ringD').source === 'ai', '대화: 배운 표현으로 읽기');
+  const L2 = C.m2mLearn([], '물통은 50 정도 들어가게', [{ slot: 'liquid', value: 50, phrase: '물통은 50', how: 'ai' }], []);
+  ok(L2.added[0] && L2.added[0].value === null && L2.added[0].phrase === '물통은', '대화: 숫자 앞 낱말 배우기'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

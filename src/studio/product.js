@@ -46,6 +46,8 @@ function m2mRequest(text) {
   // 제품인가, 움직임 하나인가: 모양·사람 입력·움직임 아닌 효과 중 하나라도 있거나 효과가 둘 이상이면 제품
   R.kind = (shape || input || effects.some(e => e.kind !== 'motion') || effects.length > 1) ? 'product' : 'motion';
   R.parts = R.shape.value ? m2mPartsFrom(R.shape.value) : [];   // 모양에 맞는 기본 부위 (값은 비워 둠)
+  // 글 속 수치·단위(예: 링 지름 3cm, 1초에 5번, 비누액 50mL)와 배운 표현을 칸에 넣음 (대화와 같은 규칙)
+  R.skip = []; if (R.kind === 'product') m2mApplyFound(R, m2mExtract(t, R).filter(f => M2M_SLOTS[f.slot].at || f.how === 'lex' && !M2M_SLOTS[f.slot].has(R)), 'user');
   return R;
 }
 // 제품 요청서에서 아직 모르는 것 → 질문 (값을 멋대로 채우지 않음)

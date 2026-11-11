@@ -145,6 +145,11 @@ td .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:
 .steps button[aria-current="step"] b{background:var(--accent);color:var(--accent-ink)}
 .steps button:disabled{opacity:.45;cursor:default}
 .stCard{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.chLog{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.chMsg{flex:none;display:flex;gap:6px;font-size:13px;line-height:1.45}.chMsg>b{flex:none;width:26px;color:var(--mute);font-weight:600}.chMsg>div{min-width:0}
+.chMsg.user>div{background:var(--sunk);border-radius:8px;padding:4px 8px}.chMsg.ai>b{color:var(--steel)}
+.chRead{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}.chip{font-size:12px;border:1px solid var(--line);border-radius:10px;padding:1px 7px;background:var(--panel)}
+.chAsk{margin:4px 0;font-weight:600;font-size:13px}.chBar{flex:1;height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}.chBar i{display:block;height:100%;background:var(--ok)}
 .stPart{border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
 .stPart th{text-align:left;font-size:12px;color:var(--mut,inherit);font-weight:600;padding-top:6px}
 .stCard.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
