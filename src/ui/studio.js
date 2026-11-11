@@ -67,6 +67,7 @@ function stReqCard(R) {
         ${R.effects.some(e => e.kind === 'motion') ? `<p class="hint">움직임: ${escH(M2M_MOTIONS[P.spec.motion.value] ? M2M_MOTIONS[P.spec.motion.value].ko : '?')}</p>` : ''}</td><td>${R.effects.length ? '' : srcB('missing')}</td></tr>
       <tr><td>동력</td><td><select data-rq="power"><option value=""${!R.power.value ? ' selected' : ''}>정하지 않음</option><option value="hand"${R.power.value === 'hand' ? ' selected' : ''}>손힘만</option><option value="battery"${R.power.value === 'battery' ? ' selected' : ''}>건전지·모터 가능</option></select></td><td>${srcB(R.power.source)}</td></tr>
     </tbody></table></div>
+    ${stPartsCard(R)}
     ${stExtraCard(R)}
     ${q.length ? `<p class="hint">아직 비어 있는 칸: ${q.map(x => escH(x.ask)).join(' / ')}</p>` : ''}
     <div class="row">${m2mDecompose(R).ok ? `<button class="btn primary" data-go="2">기능 분해와 개념안 보기</button>` : ''}<button class="btn" data-act="rqMotion">움직임 하나로 다루기</button></div>

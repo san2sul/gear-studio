@@ -82,6 +82,8 @@ function m2mConcepts(R) {
 const BUB_DEF = { ringD: 25, rings: 6, ringRim: 3, wheelRpm: 40, wheelT: 2.4, wall: 2.4, volt: 3, m: 1, z1: 12, gunLen: 130, gripAngle: 105 };
 function bubbleDesign(p = {}) {
   const Q = { ...BUB_DEF, ...p };
+  // 총구 구멍: 정하지 않으면 링보다 11 mm 크게 (기본 링 25 → 36)
+  if (Q.muzzleD == null) Q.muzzleD = Q.ringD + 11;
   // 링 중심 반지름: 이웃 링 사이 살 4 mm 이상, 허브(반지름 8)와 링 사이 3 mm 이상
   const ro = Q.ringD / 2 + Q.ringRim, R = Math.ceil(Math.max((2 * ro + 4) / (2 * Math.sin(PI / Q.rings)), 8 + 3 + ro) * 2) / 2;
   // 바퀴 모터: N20 300 rpm(6 V 정격). 3 V에서는 전압 비례·부하 80%로 어림 (가정값)
@@ -154,7 +156,7 @@ function bubbleModel(D) {
   const top = moveTris(extrudeTris(rectPts(H.x0 + W, -hy, H.x1 - W, hy), [], W), 0, 0, H.zTop - W);
   const toPrintX = XF.basis([0, 0, 1], [0, 1, 0], [-1, 0, 0]);   // 뒤판(−x)이 바닥으로
   model.housing.push({ name: '머리 몸체', file: 'H1_head_body', tris: back.concat(sideL, sideR, top), print: toPrintX });
-  model.housing.push({ name: '앞 덮개', file: 'H2_front_cover', tris: plate(rectPts(-hy, H.zBot, hy, H.zTop), [circlePts(18, 64, 0, R)], W, BX(H.x1 - W)), print: toPrintX });
+  model.housing.push({ name: '앞 덮개', file: 'H2_front_cover', tris: plate(rectPts(-hy, H.zBot, hy, H.zTop), [circlePts(D.muzzleD / 2, 64, 0, R)], W, BX(H.x1 - W)), print: toPrintX });
   // 몸통 옆모양 (x, z): 앞(머리 쪽)이 열린 꺾은선, 방아쇠 자리만 비움
   const path1 = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [-42, B.zBot]], path2 = [[-30, B.zBot], [B.x1, B.zBot]];
   const outline = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [B.x1, B.zBot]];
@@ -184,6 +186,7 @@ function bubbleModel(D) {
   const gapBodyTop = (B.zTop - W) - (R + G.motR); chk(gapBodyTop >= 1, `130 모터 위와 몸통 윗벽 사이 ${fmt(gapBodyTop, 1)} mm`);
   const tail = (G.grip.bb[0] - 8) - B.x0; chk(tail >= 0, tail >= 0 ? `총 길이 ${D.gunLen} mm: 손잡이 뒤로 몸통이 ${fmt(tail, 0)} mm 남습니다` : `총 길이 ${D.gunLen} mm로는 손잡이(기울기 ${D.gripAngle}°)가 몸통 뒤로 삐져나옵니다. 길이를 ${Math.ceil(14 - G.grip.bb[0] + 8)} mm 이상으로 하세요`);
   const gripIn = 32 * Math.cos(G.grip.slant) - 2 * W; chk(gripIn - 16 >= 1, `손잡이 안쪽 폭 ${fmt(gripIn, 1)} mm에 건전지 홀더(16 mm)가 들어갑니다 (여유 ${fmt(gripIn - 16, 1)} mm)`);
+  const mzTop = H.zTop - R - 1.5, mzOk = D.muzzleD >= D.ringD + 4 && D.muzzleD / 2 <= mzTop; chk(mzOk, `총구 구멍 지름 ${D.muzzleD} mm: 링(${D.ringD} mm)보다 4 mm 이상 커야 하고, 앞 덮개 위 끝에 1.5 mm 이상 남아야 합니다(최대 ${fmt(2 * mzTop, 1)} mm)${D.muzzleD < D.ringD + 4 ? ' → 작음' : D.muzzleD / 2 > mzTop ? ' → 큼' : ''}`);
   const sz = [H.x1 - B.x0, 2 * H.y, Math.max(H.zTop, B.zTop) + 80];
   chk(true, `변속비 <em>${D.z2}:${D.z1}</em> · 링 바퀴 <em>${fmt(wheelGot, 1)} rpm</em> · 총구 통과 <em>${fmt(bubblesPerS, 1)}번/초</em> · 링 중심 반지름 <em>${fmt(R, 1)} mm</em>`);
   C.push({ st: 'warn', txt: '비누막이 생기는지, 방울 크기와 개수는 계산하지 않습니다(미검증). 출력 뒤 실험해 기록하세요.' });
@@ -191,7 +194,10 @@ function bubbleModel(D) {
   model.size = { dim: sz };
   // 요청서 추가 항목이 비교할 수 있는 잰 값 (모두 계산)
   const hb = trisBounds([].concat(...model.housing.map(h => h.tris)));
-  model.measures = { rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
+  const fanRpm = wFan * 60 / 2 / PI;
+  // 부위별 동작: 요청서의 부위와 잇는 3D 부품의 실제 움직임 (계산값)
+  model.partMotion = { trigger: { kind: 'linear', stroke_mm: 2 }, wheel: { kind: 'rotate', rpm: wheelGot }, fan: { kind: 'rotate', rpm: fanRpm }, muzzle: { kind: null }, grip: { kind: null }, body: { kind: null }, tray: { kind: null } };
+  model.measures = { muzzleD: D.muzzleD, trigStroke: 2, gripAngle: D.gripAngle, gunLen: hb.hi[0] - hb.lo[0], rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
   // ---- G6 부품표와 조립 순서 ----
   model.bom = [['링 바퀴(출력)', 1, `링 ${D.rings}개 × 지름 ${D.ringD} mm`], ['큰 기어 z' + D.z2 + '(출력)', 1, 'm' + D.m], ['피니언 z' + D.z1 + '(출력)', 1, 'D컷 3 mm'], ['팬(출력)', 1, '지름 ' + fmt(2 * G.fanR, 0) + ' mm'],
     ['비누액 통(출력)', 1, `약 ${fmt((T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, 0)} mL, PETG 권장`], ['방아쇠(출력)', 1, ''], ['머리 몸체·앞 덮개(출력)', 2, ''], ['몸통 반쪽(출력)', 2, ''],

@@ -149,6 +149,8 @@ td .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:
 .steps button[aria-current="step"] b{background:var(--accent);color:var(--accent-ink)}
 .steps button:disabled{opacity:.45;cursor:default}
 .stCard{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.stPart{border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.stPart th{text-align:left;font-size:12px;color:var(--mut,inherit);font-weight:600;padding-top:6px}
 .stCard.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .stCard .why{margin:0;padding-left:18px;font-size:12.5px}.stCard .why li.w{color:var(--warn)}
 .bdg{display:inline-block;font:700 11px var(--f-ui);padding:1px 7px;border-radius:99px;white-space:nowrap;border:1px solid currentColor;vertical-align:1px}
@@ -5902,6 +5904,7 @@ function m2mRequest(text) {
   };
   // 제품인가, 움직임 하나인가: 모양·사람 입력·움직임 아닌 효과 중 하나라도 있거나 효과가 둘 이상이면 제품
   R.kind = (shape || input || effects.some(e => e.kind !== 'motion') || effects.length > 1) ? 'product' : 'motion';
+  R.parts = R.shape.value ? m2mPartsFrom(R.shape.value) : [];   // 모양에 맞는 기본 부위 (값은 비워 둠)
   return R;
 }
 // 제품 요청서에서 아직 모르는 것 → 질문 (값을 멋대로 채우지 않음)
@@ -5936,6 +5939,55 @@ function m2mExtraEval(x, M) {
   const got = M.measures[x.key], v = +x.value, tol = Math.max(1e-6, Math.abs(v) * 0.01);
   const ok = x.op === '≤' ? got <= v + tol : x.op === '≥' ? got >= v - tol : Math.abs(got - v) <= tol;
   return { state: ok ? 'ok' : 'bad', got, how: E.how };
+}
+// ---- 부위별 사양과 동작: 제품을 부위로 나눠 부위마다 사양 줄과 동작 줄을 둠 ----
+// link: 3D 모형의 어느 부품과 잇는지 (잇지 않으면 기록만 → 미검증)
+const M2M_PLINKS = { muzzle: '총구', trigger: '방아쇠', grip: '손잡이', body: '몸통', wheel: '링 바퀴', fan: '팬', tray: '비누액 통' };
+const M2M_PSPEC = {
+  muzzleD: { ko: '구멍 지름', unit: 'mm', op: '=', design: 'muzzleD', range: [20, 60], link: 'muzzle' },
+  trigStroke: { ko: '당기는 거리', unit: 'mm', op: '=', range: [1, 40], link: 'trigger' },
+  trigForce: { ko: '당기는 힘', unit: 'N', op: '≤', range: [1, 60], noCalc: true, link: 'trigger' },
+  gripAngle: { ko: '기울기(총열과 이루는 각)', unit: '°', op: '=', design: 'gripAngle', range: [95, 115], link: 'grip' },
+  gunLen: { ko: '전체 길이', unit: 'mm', op: '=', design: 'gunLen', range: [100, 200], link: 'body' },
+  ringD: { ko: '링 지름', unit: 'mm', op: '=', design: 'ringD', range: [10, 50], link: 'wheel' },
+  rings: { ko: '링 개수', unit: '개', op: '=', design: 'rings', range: [3, 10], link: 'wheel' },
+  liquid: { ko: '담는 양', unit: 'mL', op: '≥', range: [5, 1000], link: 'tray' },
+};
+const M2M_PART_TPL = {
+  gun: [
+    { link: 'muzzle', name: '총구', specs: ['muzzleD'], motions: [] },
+    { link: 'trigger', name: '방아쇠', specs: ['trigStroke', 'trigForce'], motions: [{ kind: 'linear', when: '사람이 당길 때' }] },
+    { link: 'grip', name: '손잡이', specs: ['gripAngle'], motions: [] },
+    { link: 'body', name: '몸통', specs: ['gunLen'], motions: [] },
+    { link: 'wheel', name: '링 바퀴(안쪽)', specs: ['ringD', 'rings'], motions: [{ kind: 'rotate', when: '방아쇠를 당기는 동안' }] },
+  ],
+};
+function m2mPartsFrom(shape) {
+  const T = M2M_PART_TPL[shape]; if (!T) return [];
+  return T.map((t, i) => ({ id: 'pt' + i, name: t.name, link: t.link, source: 'default',
+    specs: t.specs.map(k => ({ key: k, op: M2M_PSPEC[k].op, value: '', source: 'default' })), motions: t.motions.map(m => ({ kind: m.kind, when: m.when, traits: {}, source: 'default' })) }));
+}
+// 사양 한 줄 판정: 값이 비면 '정하지 않음', 3D와 이을 수 있으면 잰 값과 비교, 아니면 미검증
+function m2mSpecEval(x, M) {
+  if (x.value === '' || x.value == null) return { state: 'none', got: null, how: '정하지 않음' };
+  const E = x.key && M2M_PSPEC[x.key], got = E && !E.noCalc && M && M.measures ? M.measures[x.key] : null;
+  if (got == null || !isFinite(+x.value)) return { state: 'unv', got: null, how: E ? (E.noCalc ? '앱이 아직 계산하지 않음' : '이 설계에서는 잴 수 없음') : '직접 쓴 항목: 기록만 함' };
+  const v = +x.value, tol = Math.max(1e-6, Math.abs(v) * 0.01), ok = x.op === '≤' ? got <= v + tol : x.op === '≥' ? got >= v - tol : Math.abs(got - v) <= tol;
+  return { state: ok ? 'ok' : 'bad', got, how: E.design ? '설계 입력으로 쓰고 3D에서 다시 잼' : '3D에서 잼' };
+}
+// 동작 한 줄 판정: 이은 부품의 실제 움직임 종류와 값(1%)을 비교
+function m2mMotionEval(part, mo, M) {
+  const pm = part.link && M && M.partMotion ? M.partMotion[part.link] : null;
+  if (!pm) return { state: 'unv', how: part.link ? '이 설계에 그 부품이 없음' : '3D 부품과 잇지 않음: 기록만 함', got: null };
+  const mk = mo.kind && mo.kind !== 'none' ? mo.kind : null;
+  if (!pm.kind) return { state: mk ? 'bad' : 'ok', how: mk ? '이 부위는 움직이지 않게 설계됨' : '고정: 3D에서도 움직이지 않음', got: '고정' };
+  if (!mk) return { state: 'bad', how: `실제로는 ${M2M_MOTIONS[pm.kind].ko}`, got: M2M_MOTIONS[pm.kind].ko };
+  const same = mk === pm.kind || (mk === 'recip' && pm.kind === 'linear') || (mk === 'linear' && pm.kind === 'recip');
+  if (!same) return { state: 'bad', how: `실제 움직임은 ${M2M_MOTIONS[pm.kind].ko}`, got: M2M_MOTIONS[pm.kind].ko };
+  const bad = Object.entries(mo.traits || {}).filter(([k, v]) => v !== '' && v != null && isFinite(+v) && pm[k] != null && Math.abs(pm[k] - +v) > Math.abs(+v) * (k === 'rpm' ? 0.05 : 0.01) + 1e-6);   // 회전수는 기어 잇수가 정수라 5%
+  const unk = Object.entries(mo.traits || {}).filter(([k, v]) => v !== '' && v != null && pm[k] == null);
+  const got = [M2M_MOTIONS[pm.kind].ko, ...Object.entries(pm).filter(([k]) => k !== 'kind').map(([k, v]) => `${(M2M_TRAITS[k] || [k])[0]} ${fmt(v, 1)} ${(M2M_TRAITS[k] || ['', ''])[1]}`)].join(', ');
+  return { state: bad.length ? 'bad' : unk.length ? 'unv' : 'ok', how: bad.length ? bad.map(([k]) => (M2M_TRAITS[k] || [k])[0] + '이(가) 다름').join(', ') : unk.length ? '일부 값은 잴 수 없음' : '3D 부품의 움직임과 같음', got };
 }
 
 /* ================= 제품: 기능 분해 → 개념안 → 비누방울 총 (G2~G6 세로 한 줄) =================
@@ -6022,6 +6074,8 @@ function m2mConcepts(R) {
 const BUB_DEF = { ringD: 25, rings: 6, ringRim: 3, wheelRpm: 40, wheelT: 2.4, wall: 2.4, volt: 3, m: 1, z1: 12, gunLen: 130, gripAngle: 105 };
 function bubbleDesign(p = {}) {
   const Q = { ...BUB_DEF, ...p };
+  // 총구 구멍: 정하지 않으면 링보다 11 mm 크게 (기본 링 25 → 36)
+  if (Q.muzzleD == null) Q.muzzleD = Q.ringD + 11;
   // 링 중심 반지름: 이웃 링 사이 살 4 mm 이상, 허브(반지름 8)와 링 사이 3 mm 이상
   const ro = Q.ringD / 2 + Q.ringRim, R = Math.ceil(Math.max((2 * ro + 4) / (2 * Math.sin(PI / Q.rings)), 8 + 3 + ro) * 2) / 2;
   // 바퀴 모터: N20 300 rpm(6 V 정격). 3 V에서는 전압 비례·부하 80%로 어림 (가정값)
@@ -6094,7 +6148,7 @@ function bubbleModel(D) {
   const top = moveTris(extrudeTris(rectPts(H.x0 + W, -hy, H.x1 - W, hy), [], W), 0, 0, H.zTop - W);
   const toPrintX = XF.basis([0, 0, 1], [0, 1, 0], [-1, 0, 0]);   // 뒤판(−x)이 바닥으로
   model.housing.push({ name: '머리 몸체', file: 'H1_head_body', tris: back.concat(sideL, sideR, top), print: toPrintX });
-  model.housing.push({ name: '앞 덮개', file: 'H2_front_cover', tris: plate(rectPts(-hy, H.zBot, hy, H.zTop), [circlePts(18, 64, 0, R)], W, BX(H.x1 - W)), print: toPrintX });
+  model.housing.push({ name: '앞 덮개', file: 'H2_front_cover', tris: plate(rectPts(-hy, H.zBot, hy, H.zTop), [circlePts(D.muzzleD / 2, 64, 0, R)], W, BX(H.x1 - W)), print: toPrintX });
   // 몸통 옆모양 (x, z): 앞(머리 쪽)이 열린 꺾은선, 방아쇠 자리만 비움
   const path1 = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [-42, B.zBot]], path2 = [[-30, B.zBot], [B.x1, B.zBot]];
   const outline = [[B.x1, B.zTop], [B.x0, B.zTop], [B.x0, B.zBot], G.grip.bt, G.grip.bb, G.grip.fb, G.grip.ft, [B.x1, B.zBot]];
@@ -6124,6 +6178,7 @@ function bubbleModel(D) {
   const gapBodyTop = (B.zTop - W) - (R + G.motR); chk(gapBodyTop >= 1, `130 모터 위와 몸통 윗벽 사이 ${fmt(gapBodyTop, 1)} mm`);
   const tail = (G.grip.bb[0] - 8) - B.x0; chk(tail >= 0, tail >= 0 ? `총 길이 ${D.gunLen} mm: 손잡이 뒤로 몸통이 ${fmt(tail, 0)} mm 남습니다` : `총 길이 ${D.gunLen} mm로는 손잡이(기울기 ${D.gripAngle}°)가 몸통 뒤로 삐져나옵니다. 길이를 ${Math.ceil(14 - G.grip.bb[0] + 8)} mm 이상으로 하세요`);
   const gripIn = 32 * Math.cos(G.grip.slant) - 2 * W; chk(gripIn - 16 >= 1, `손잡이 안쪽 폭 ${fmt(gripIn, 1)} mm에 건전지 홀더(16 mm)가 들어갑니다 (여유 ${fmt(gripIn - 16, 1)} mm)`);
+  const mzTop = H.zTop - R - 1.5, mzOk = D.muzzleD >= D.ringD + 4 && D.muzzleD / 2 <= mzTop; chk(mzOk, `총구 구멍 지름 ${D.muzzleD} mm: 링(${D.ringD} mm)보다 4 mm 이상 커야 하고, 앞 덮개 위 끝에 1.5 mm 이상 남아야 합니다(최대 ${fmt(2 * mzTop, 1)} mm)${D.muzzleD < D.ringD + 4 ? ' → 작음' : D.muzzleD / 2 > mzTop ? ' → 큼' : ''}`);
   const sz = [H.x1 - B.x0, 2 * H.y, Math.max(H.zTop, B.zTop) + 80];
   chk(true, `변속비 <em>${D.z2}:${D.z1}</em> · 링 바퀴 <em>${fmt(wheelGot, 1)} rpm</em> · 총구 통과 <em>${fmt(bubblesPerS, 1)}번/초</em> · 링 중심 반지름 <em>${fmt(R, 1)} mm</em>`);
   C.push({ st: 'warn', txt: '비누막이 생기는지, 방울 크기와 개수는 계산하지 않습니다(미검증). 출력 뒤 실험해 기록하세요.' });
@@ -6131,7 +6186,10 @@ function bubbleModel(D) {
   model.size = { dim: sz };
   // 요청서 추가 항목이 비교할 수 있는 잰 값 (모두 계산)
   const hb = trisBounds([].concat(...model.housing.map(h => h.tris)));
-  model.measures = { rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
+  const fanRpm = wFan * 60 / 2 / PI;
+  // 부위별 동작: 요청서의 부위와 잇는 3D 부품의 실제 움직임 (계산값)
+  model.partMotion = { trigger: { kind: 'linear', stroke_mm: 2 }, wheel: { kind: 'rotate', rpm: wheelGot }, fan: { kind: 'rotate', rpm: fanRpm }, muzzle: { kind: null }, grip: { kind: null }, body: { kind: null }, tray: { kind: null } };
+  model.measures = { muzzleD: D.muzzleD, trigStroke: 2, gripAngle: D.gripAngle, gunLen: hb.hi[0] - hb.lo[0], rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
   // ---- G6 부품표와 조립 순서 ----
   model.bom = [['링 바퀴(출력)', 1, `링 ${D.rings}개 × 지름 ${D.ringD} mm`], ['큰 기어 z' + D.z2 + '(출력)', 1, 'm' + D.m], ['피니언 z' + D.z1 + '(출력)', 1, 'D컷 3 mm'], ['팬(출력)', 1, '지름 ' + fmt(2 * G.fanR, 0) + ' mm'],
     ['비누액 통(출력)', 1, `약 ${fmt((T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, 0)} mL, PETG 권장`], ['방아쇠(출력)', 1, ''], ['머리 몸체·앞 덮개(출력)', 2, ''], ['몸통 반쪽(출력)', 2, ''],
@@ -8031,6 +8089,7 @@ function stReqCard(R) {
         ${R.effects.some(e => e.kind === 'motion') ? `<p class="hint">움직임: ${escH(M2M_MOTIONS[P.spec.motion.value] ? M2M_MOTIONS[P.spec.motion.value].ko : '?')}</p>` : ''}</td><td>${R.effects.length ? '' : srcB('missing')}</td></tr>
       <tr><td>동력</td><td><select data-rq="power"><option value=""${!R.power.value ? ' selected' : ''}>정하지 않음</option><option value="hand"${R.power.value === 'hand' ? ' selected' : ''}>손힘만</option><option value="battery"${R.power.value === 'battery' ? ' selected' : ''}>건전지·모터 가능</option></select></td><td>${srcB(R.power.source)}</td></tr>
     </tbody></table></div>
+    ${stPartsCard(R)}
     ${stExtraCard(R)}
     ${q.length ? `<p class="hint">아직 비어 있는 칸: ${q.map(x => escH(x.ask)).join(' / ')}</p>` : ''}
     <div class="row">${m2mDecompose(R).ok ? `<button class="btn primary" data-go="2">기능 분해와 개념안 보기</button>` : ''}<button class="btn" data-act="rqMotion">움직임 하나로 다루기</button></div>
@@ -8239,6 +8298,31 @@ function stExtraCard(R) {
     ${X.length ? `<div class="tblWrap"><table class="vt"><tbody>${X.map(row).join('')}</tbody></table></div>` : ''}
     <div class="row"><select id="rxNew">${Object.entries(M2M_EXTRA).filter(([k]) => !used.has(k)).map(([k, E]) => `<option value="${k}">${escH(E.ko)} (${E.unit})</option>`).join('')}<option value="">직접 쓰기…</option></select><button class="btn" data-act="rxAdd">항목 추가</button></div></details>`;
 }
+// 부위별 사양과 동작 카드: 부위 → 사양 줄(이름, 비교, 값, 단위) + 동작 줄(종류, 언제, 값)
+function stPartsCard(R) {
+  const PT = R.parts || [];
+  const specRow = (pi, x, si) => { const E = x.key && M2M_PSPEC[x.key];
+    return `<tr><td>${E ? escH(E.ko) + (E.noCalc ? ' ' + stB('unv') : '') : `<input data-ps="${pi}:${si}:label" value="${escH(x.label || '')}" placeholder="사양 이름" style="width:100%;min-width:60px">`}</td>
+      <td><span class="row" style="gap:3px;align-items:center;flex-wrap:nowrap"><select data-ps="${pi}:${si}:op" style="width:40px;padding-left:2px;padding-right:0">${['=', '≤', '≥'].map(o => `<option${o === x.op ? ' selected' : ''}>${o}</option>`).join('')}</select>
+        <input data-ps="${pi}:${si}:value" ${E ? `type="number" step="any" title="${E.range[0]}~${E.range[1]} ${E.unit}"` : ''} value="${escH(x.value ?? '')}" style="width:52px">${E ? `<span class="u">${E.unit}</span>` : `<input data-ps="${pi}:${si}:unit" value="${escH(x.unit || '')}" placeholder="단위" style="width:38px">`}</span></td>
+      <td style="width:30px"><button class="btn" data-act="psDel" data-p="${pi}" data-i="${si}" aria-label="사양 지우기">✕</button></td></tr>`; };
+  const moRow = (pi, m, mi) => { const need = M2M_NEED[m.kind] || [];
+    return `<tr><td colspan="2"><div class="row" style="gap:4px;flex-wrap:nowrap"><select data-pm="${pi}:${mi}:kind" style="width:108px;flex:none"><option value="none"${m.kind === 'none' ? ' selected' : ''}>움직이지 않음</option>${Object.entries(M2M_MOTIONS).map(([k, x]) => `<option value="${k}"${k === m.kind ? ' selected' : ''}>${escH(x.ko)}</option>`).join('')}</select>
+        <input data-pm="${pi}:${mi}:when" value="${escH(m.when || '')}" placeholder="언제 (예: 당기는 동안)" style="flex:1;min-width:0"></div>
+        ${need.length ? `<div class="row" style="gap:8px;margin-top:4px">${need.map(([k, , u]) => `<label class="hint" style="display:inline-flex;gap:4px;align-items:center">${escH(M2M_TRAITS[k][0])} <input type="number" step="any" data-pm="${pi}:${mi}:t.${k}" value="${escH(m.traits && m.traits[k] != null ? m.traits[k] : '')}" style="width:52px"> ${u}</label>`).join('')}</div>` : ''}</td>
+      <td style="width:30px"><button class="btn" data-act="pmDel" data-p="${pi}" data-i="${mi}" aria-label="동작 지우기">✕</button></td></tr>`; };
+  const part = (pt, pi) => { const used = new Set(pt.specs.map(x => x.key).filter(Boolean)), keys = Object.entries(M2M_PSPEC).filter(([k, E]) => !used.has(k) && pt.link && E.link === pt.link);
+    return `<div class="stPart" data-pi="${pi}"><div class="row" style="align-items:center;gap:6px;flex-wrap:nowrap"><input data-pp="${pi}:name" value="${escH(pt.name)}" placeholder="부위 이름" style="flex:1;min-width:0;font-weight:600"><button class="btn" data-act="ppDel" data-p="${pi}" aria-label="부위 지우기">✕</button></div>
+      <div class="row" style="align-items:center;gap:6px;flex-wrap:nowrap"><select data-pp="${pi}:link" style="flex:1;min-width:0"><option value="">3D 부품과 잇지 않음</option>${Object.entries(M2M_PLINKS).map(([k, ko]) => `<option value="${k}"${k === pt.link ? ' selected' : ''}>3D 부품: ${escH(ko)}</option>`).join('')}</select>${pt.link ? stB('calc') : stB('unv')}</div>
+      <table class="vt"><tbody><tr><th colspan="3">사양</th></tr>${pt.specs.map((x, si) => specRow(pi, x, si)).join('') || '<tr><td colspan="3" class="hint">아직 없음</td></tr>'}
+        <tr><th colspan="3">동작</th></tr>${pt.motions.map((m, mi) => moRow(pi, m, mi)).join('') || '<tr><td colspan="3" class="hint">아직 없음</td></tr>'}</tbody></table>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><select id="psNew${pi}" style="flex:1;min-width:0">${keys.map(([k, E]) => `<option value="${k}">${escH(E.ko)} (${E.unit})</option>`).join('')}<option value="">직접 쓰기…</option></select><button class="btn" data-act="psAdd" data-p="${pi}">+ 사양</button><button class="btn" data-act="pmAdd" data-p="${pi}">+ 동작</button></div></div>`; };
+  return `<details${PT.length ? ' open' : ''} id="stParts"><summary>부위별 사양과 동작 ${PT.length ? PT.length + '곳' : ''}</summary>
+    <p class="hint">제품을 부위로 나눠 부위마다 사양과 동작을 적으세요. 3D 부품과 이은 부위는 ${stB('calc')} 값을 설계에 쓰거나 3D 치수·움직임과 비교하고, 잇지 않은 부위와 직접 쓴 사양은 ${stB('unv')} 기록만 합니다. 값을 비운 줄은 쓰지 않습니다.</p>
+    ${PT.map(part).join('')}
+    <div class="row" style="gap:6px;flex-wrap:nowrap"><input id="ppNew" placeholder="새 부위 이름 (예: 물통 뚜껑)" style="flex:1;min-width:0"><button class="btn" data-act="ppAdd">+ 부위</button></div>
+    ${R.shape.value && M2M_PART_TPL[R.shape.value] && !PT.length ? `<div class="row"><button class="btn" data-act="ppTpl">${escH(M2M_SHAPES[R.shape.value][0])} 기본 부위 넣기</button></div>` : ''}</details>`;
+}
 // 설계 전 단계에서 막혔을 때 보여 줄 안내
 function stPNeed() {
   if (!stCanBuild()) return `<fieldset><legend>아직 이어지지 않아요</legend><p class="hint">요청서의 결과 효과에 맞는 기능 분해 템플릿이 아직 없어요 ${stB('none')}. 지금은 “비누방울”만 설계·시뮬레이션·제작까지 이어집니다.</p><div class="row"><button class="btn" data-go="1">요청서로 돌아가기</button></div></fieldset>`;
@@ -8253,7 +8337,15 @@ function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.
   const rate = ((P.req && P.req.extra) || []).find(x => x.key === 'rate' && +x.value > 0);
   if (rate) { const need = +rate.value * 60 / (p.rings || BUB_DEF.rings); if (rate.op !== '≤' && need > (p.wheelRpm || BUB_DEF.wheelRpm)) p.wheelRpm = Math.min(90, +need.toFixed(1)); }
   const sp = P.req && P.req.shape.value === 'gun' && P.req.shape.params || {}; if (sp.length) p.gunLen = sp.length.value; if (sp.gripAngle) p.gripAngle = sp.gripAngle.value;   // 요청서의 총 길이·손잡이 각도
+  for (const pt of (P.req && P.req.parts) || []) {   // 부위별 사양·동작 (가장 나중 = 가장 우선)
+    for (const x of pt.specs) { const E = M2M_PSPEC[x.key], v = +x.value; if (E && E.design && x.op === '=' && x.value !== '' && v >= E.range[0] && v <= E.range[1]) p[E.design] = x.key === 'rings' ? Math.round(v) : v; }
+    for (const m of pt.motions) if (pt.link === 'wheel' && m.kind === 'rotate' && m.traits && +m.traits.rpm >= 10 && +m.traits.rpm <= 90) p.wheelRpm = +m.traits.rpm; }
   return bubbleDesign(p); }
+// 부위에서 정한 설계 입력 키 (설계 단계에서 잠금 표시)
+function stPartKeys() { const K = new Set();
+  for (const pt of (P.req && P.req.parts) || []) { for (const x of pt.specs) { const E = M2M_PSPEC[x.key]; if (E && E.design && x.op === '=' && x.value !== '') K.add(E.design); }
+    for (const m of pt.motions) if (pt.link === 'wheel' && m.kind === 'rotate' && m.traits && m.traits.rpm !== '' && m.traits.rpm != null) K.add('wheelRpm'); }
+  return K; }
 function stUseBubble() { P.chosen = 'B'; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design))); }
 // 3. 개념안
 function stConcepts() {
@@ -8278,12 +8370,12 @@ function stConcepts() {
 // 4. 설계 (B안)
 function stPDesign() {
   if (!P.design || P.design.kind !== 'bubble') return stPNeed();
-  const D = P.design, G = bubbleGeom(D), fromReq = k => ((P.req.extra || []).some(x => x.key === k) || (k === 'wheelRpm' && (P.req.extra || []).some(x => x.key === 'rate'))), src = k => P.bub && P.bub[k] != null || fromReq(k) ? 'user' : 'default';
+  const D = P.design, G = bubbleGeom(D), fromReq = k => (stPartKeys().has(k) || (P.req.extra || []).some(x => x.key === k) || (k === 'wheelRpm' && (P.req.extra || []).some(x => x.key === 'rate'))), src = k => P.bub && P.bub[k] != null || fromReq(k) ? 'user' : 'default';
   const calc = [['링 중심 반지름', fmt(D.R, 1) + ' mm', '링 사이 살 4 mm, 허브와 3 mm 띄우는 최소값'], ['링 바퀴 지름', fmt(2 * G.wheelR, 0) + ' mm', ''], ['감속 기어', `z${D.z2} : z${D.z1} (m${D.m})`, `모터 ${fmt(D.motRpm, 0)} rpm ÷ 목표 ${D.wheelRpm} rpm에 가장 가까운 잇수`],
     ['바퀴 모터 회전수', fmt(D.motRpm, 0) + ' rpm ' + stB('assume'), `N20 300 rpm(6 V형)을 ${D.volt} V로: 전압 비례 × 부하 80% 어림`], ['팬 지름', fmt(2 * G.fanR, 0) + ' mm', '큰 기어 이끝과 2 mm 이상 띄움'], ['비누액 통', `액면 ${fmt(G.tray.level, 1)} mm (바퀴 축 기준)`, '맨 아래 링이 잠기도록']];
   const sp = P.req.shape.value === 'gun' ? P.req.shape.params : null;
   return `${sp ? `<fieldset><legend>요청서에서 온 값</legend><p class="hint">총 길이 ${D.gunLen} mm, 손잡이 각도 ${D.gripAngle}° ${srcB(sp.length.source)} · 바꾸려면 <button class="btn" data-go="1">요청서 고치기</button></p></fieldset>` : ''}<fieldset><legend>B안 · 요구치로 설계</legend><p class="hint">값을 바꾸면 치수를 다시 역산하고 3D와 껍데기가 바로 바뀝니다.</p>
-    <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"${fromReq(k) ? ' disabled title="요청서 추가 항목에서 정함"' : ''}>${fromReq(k) ? ' <span class="hint">요청서</span>' : ''} <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
+    <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"${fromReq(k) ? ' disabled title="요청서(부위 사양·추가 항목)에서 정함"' : ''}>${fromReq(k) ? ' <span class="hint">요청서</span>' : ''} <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
   <fieldset><legend>계산된 치수 ${stB('calc')}</legend><div class="tblWrap"><table class="vt"><tbody>${calc.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td class="hint">${c}</td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="margin-top:8px"><button class="btn primary" data-go="4">시뮬레이션·검증으로</button></div></fieldset>`;
 }
@@ -8296,6 +8388,7 @@ function stPSim() {
     <p class="hint">“막이 5초 안에 마르지 않는다”와 바퀴 모터 회전수는 가정값입니다.</p></fieldset>
   ${(P.req.extra || []).length ? `<fieldset><legend>요청서 추가 항목</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과</th><th>상태</th><th>방법</th></tr></thead><tbody>
     ${P.req.extra.map(x => { const E = M2M_EXTRA[x.key], r = m2mExtraEval(x, model); return `<tr><td>${escH(E ? E.ko : x.label || '이름 없음')}</td><td>${escH(x.op)} ${escH(x.value ?? '')} ${escH(E ? E.unit : x.unit || '')}</td><td>${r.got == null ? '—' : fmt(r.got, 1) + ' ' + (E ? E.unit : '')}</td><td>${stB(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`; }).join('')}</tbody></table></div></fieldset>` : ''}
+  ${stPartsSim()}
   <fieldset><legend>부품 사이 거리 ${stB('calc')}</legend>${chk.map(c => `<p class="hint">${c.st === 'ok' ? stB('ok') : stB('bad')} ${c.txt}</p>`).join('')}
     <p class="hint">도는 부품은 도는 범위(원) 전체로 계산했습니다.</p></fieldset>
   <fieldset><legend>무엇이 검증되었나</legend><table class="vt"><tbody>
@@ -8307,6 +8400,16 @@ function stPSim() {
     <tr><td>물 새는지·방수</td><td>${stB('unv')}</td><td class="hint">통을 기울였을 때 넘치는지는 아직 계산하지 않습니다.</td></tr>
   </tbody></table></fieldset>
   <div class="row"><button class="btn" data-go="3">설계로 돌아가기</button><button class="btn primary" data-go="5">제작으로</button></div>`;
+}
+function stPartsSim() {
+  const PT = (P.req.parts || []).filter(pt => pt.specs.some(x => x.value !== '' && x.value != null) || pt.motions.length); if (!PT.length) return '';
+  const rows = PT.map(pt => {
+    const sp = pt.specs.filter(x => x.value !== '' && x.value != null).map(x => { const E = M2M_PSPEC[x.key], r = m2mSpecEval(x, model); return `<tr><td>${escH(pt.name)}</td><td>${escH(E ? E.ko : x.label || '이름 없음')}</td><td>${x.value === '' ? '—' : escH(x.op + ' ' + x.value + ' ' + (E ? E.unit : x.unit || ''))}</td><td>${r.got == null ? '—' : fmt(r.got, 1) + ' ' + (E ? E.unit : '')}</td><td>${stB(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`; });
+    const mo = pt.motions.map(m => { const r = m2mMotionEval(pt, m, model), tr = Object.entries(m.traits || {}).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `${M2M_TRAITS[k][0]} ${v} ${M2M_TRAITS[k][1]}`);
+      return `<tr><td>${escH(pt.name)}</td><td>동작${m.when ? ' · ' + escH(m.when) : ''}</td><td>${escH(m.kind === 'none' ? '움직이지 않음' : (M2M_MOTIONS[m.kind] || {}).ko || '?')}${tr.length ? '<br><span class="hint">' + escH(tr.join(', ')) + '</span>' : ''}</td><td>${escH(r.got || '—')}</td><td>${stB(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`; });
+    return sp.concat(mo).join(''); }).join('');
+  return `<fieldset><legend>부위별 사양과 동작</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부위</th><th>항목</th><th>요구</th><th>결과(3D)</th><th>상태</th><th>방법</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="hint">치수는 1%, 회전수는 5%(기어 잇수가 정수라서) 안이면 맞음으로 봅니다. 언제 움직이는지(“당기는 동안”)는 기록만 하고 확인하지 않습니다 ${stB('unv')}.</p></fieldset>`;
 }
 // 6. 제작
 function stPMake() {
@@ -8323,6 +8426,15 @@ $('stBody').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !P) return; const a = b.dataset.act;
   if (a === 'rxAdd' && P.req) { const k = $('rxNew').value, E = M2M_EXTRA[k]; P.req.extra = (P.req.extra || []).concat([E ? { key: k, op: E.op, value: '', source: 'user' } : { key: null, label: '', op: '=', value: '', unit: '', source: 'user' }]); stSave(); stRender(); }
   else if (a === 'rxDel' && P.req) { P.req.extra.splice(+b.dataset.i, 1); stReqApply(); stSave(); stRender(); }
+  else if (/^(pp|ps|pm)(Add|Del|Tpl)$/.test(a || '') && P.req) { const R = P.req, PT = R.parts = R.parts || [], pi = +b.dataset.p, pt = PT[pi];
+    if (a === 'ppAdd') { const n = $('ppNew').value.trim(); if (!n) { toast('부위 이름을 먼저 쓰세요'); $('ppNew').focus(); return; } PT.push({ id: 'pt' + Date.now().toString(36), name: n, link: '', source: 'user', specs: [], motions: [] }); }
+    else if (a === 'ppTpl') R.parts = m2mPartsFrom(R.shape.value);
+    else if (a === 'ppDel') PT.splice(pi, 1);
+    else if (a === 'psAdd') { const k = $('psNew' + pi).value, E = M2M_PSPEC[k]; pt.specs.push(E ? { key: k, op: E.op, value: '', source: 'user' } : { key: null, label: '', op: '=', value: '', unit: '', source: 'user' }); }
+    else if (a === 'psDel') pt.specs.splice(+b.dataset.i, 1);
+    else if (a === 'pmAdd') pt.motions.push({ kind: 'rotate', when: '', traits: {}, source: 'user' });
+    else if (a === 'pmDel') pt.motions.splice(+b.dataset.i, 1);
+    stReqApply(); stLog('요청서 부위'); stSave(); stRender(); }
   else if (a === 'rqProd' && P.req) { P.req.kind = 'product'; stSave(); stRender(); }
   else if (a === 'rqMotion' && P.req) { P.req.kind = 'motion'; stReqApply(); stStep = 1; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
@@ -8334,8 +8446,18 @@ $('stBody').addEventListener('change', e => {
   if (el.dataset.rx) { const [i, f] = el.dataset.rx.split(':'), x = R.extra && R.extra[+i]; if (!x) return; const E = M2M_EXTRA[x.key];
     if (f === 'value' && E) { const v = parseFloat(el.value); if (el.value.trim() !== '' && !(v >= E.range[0] && v <= E.range[1])) { toast(`${E.ko}은(는) ${E.range[0]}~${E.range[1]} ${E.unit} 사이여야 합니다`); el.value = x.value; return; } x.value = el.value.trim() === '' ? '' : v; }
     else x[f] = el.value; stReqApply(); stLog('요청서 추가 항목'); stSave(); stRender(); return; }
+  if (el.dataset.pp || el.dataset.ps || el.dataset.pm) { const PT = R.parts || [];
+    if (el.dataset.pp) { const [pi, f] = el.dataset.pp.split(':'), pt = PT[+pi]; if (!pt) return; pt[f] = f === 'name' ? el.value.trim() || pt.name : el.value; pt.source = 'user'; }
+    else if (el.dataset.ps) { const [pi, si, f] = el.dataset.ps.split(':'), x = PT[+pi] && PT[+pi].specs[+si]; if (!x) return; const E = M2M_PSPEC[x.key];
+      if (f === 'value' && E) { const v = parseFloat(el.value); if (el.value.trim() !== '' && !(v >= E.range[0] && v <= E.range[1])) { toast(`${E.ko}은(는) ${E.range[0]}~${E.range[1]} ${E.unit} 사이여야 합니다`); el.value = x.value; return; } x.value = el.value.trim() === '' ? '' : v; }
+      else x[f] = el.value; x.source = 'user'; }
+    else { const [pi, mi, f] = el.dataset.pm.split(':'), m = PT[+pi] && PT[+pi].motions[+mi]; if (!m) return;
+      if (f.startsWith('t.')) { const v = parseFloat(el.value); if (el.value.trim() !== '' && !(v > 0)) { toast('0보다 큰 수를 넣으세요'); el.value = m.traits[f.slice(2)] ?? ''; return; } m.traits = { ...m.traits, [f.slice(2)]: el.value.trim() === '' ? '' : v }; }
+      else { m[f] = el.value; if (f === 'kind') m.traits = {}; } m.source = 'user'; }
+    stReqApply(); stLog('요청서 부위'); stSave(); stRender(); return; }
   if (el.dataset.rq || el.dataset.rqp || el.dataset.rqfx) {
-    if (el.dataset.rq === 'shape') R.shape = el.value ? m2mReqShape(el.value, 'user') : { value: null, source: 'missing' };
+    if (el.dataset.rq === 'shape') { R.shape = el.value ? m2mReqShape(el.value, 'user') : { value: null, source: 'missing' };
+      if ((R.parts || []).every(pt => pt.source === 'default' && pt.specs.every(x => x.value === '') && pt.motions.every(m => m.source === 'default'))) R.parts = el.value ? m2mPartsFrom(el.value) : []; }   // 손대지 않은 기본 부위만 바꿈
     else if (el.dataset.rq === 'input') R.inputs = el.value ? [m2mReqInput(el.value, 'user')] : [];
     else if (el.dataset.rq === 'power') R.power = el.value ? { value: el.value, source: 'user' } : { value: null, source: 'missing' };
     else if (el.dataset.rqfx) { const k = el.dataset.rqfx; R.effects = R.effects.filter(x => x.kind !== k); if (el.checked) R.effects.push({ id: k, kind: k, source: 'user' }); }

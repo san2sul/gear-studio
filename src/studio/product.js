@@ -45,6 +45,7 @@ function m2mRequest(text) {
   };
   // 제품인가, 움직임 하나인가: 모양·사람 입력·움직임 아닌 효과 중 하나라도 있거나 효과가 둘 이상이면 제품
   R.kind = (shape || input || effects.some(e => e.kind !== 'motion') || effects.length > 1) ? 'product' : 'motion';
+  R.parts = R.shape.value ? m2mPartsFrom(R.shape.value) : [];   // 모양에 맞는 기본 부위 (값은 비워 둠)
   return R;
 }
 // 제품 요청서에서 아직 모르는 것 → 질문 (값을 멋대로 채우지 않음)
@@ -79,4 +80,53 @@ function m2mExtraEval(x, M) {
   const got = M.measures[x.key], v = +x.value, tol = Math.max(1e-6, Math.abs(v) * 0.01);
   const ok = x.op === '≤' ? got <= v + tol : x.op === '≥' ? got >= v - tol : Math.abs(got - v) <= tol;
   return { state: ok ? 'ok' : 'bad', got, how: E.how };
+}
+// ---- 부위별 사양과 동작: 제품을 부위로 나눠 부위마다 사양 줄과 동작 줄을 둠 ----
+// link: 3D 모형의 어느 부품과 잇는지 (잇지 않으면 기록만 → 미검증)
+const M2M_PLINKS = { muzzle: '총구', trigger: '방아쇠', grip: '손잡이', body: '몸통', wheel: '링 바퀴', fan: '팬', tray: '비누액 통' };
+const M2M_PSPEC = {
+  muzzleD: { ko: '구멍 지름', unit: 'mm', op: '=', design: 'muzzleD', range: [20, 60], link: 'muzzle' },
+  trigStroke: { ko: '당기는 거리', unit: 'mm', op: '=', range: [1, 40], link: 'trigger' },
+  trigForce: { ko: '당기는 힘', unit: 'N', op: '≤', range: [1, 60], noCalc: true, link: 'trigger' },
+  gripAngle: { ko: '기울기(총열과 이루는 각)', unit: '°', op: '=', design: 'gripAngle', range: [95, 115], link: 'grip' },
+  gunLen: { ko: '전체 길이', unit: 'mm', op: '=', design: 'gunLen', range: [100, 200], link: 'body' },
+  ringD: { ko: '링 지름', unit: 'mm', op: '=', design: 'ringD', range: [10, 50], link: 'wheel' },
+  rings: { ko: '링 개수', unit: '개', op: '=', design: 'rings', range: [3, 10], link: 'wheel' },
+  liquid: { ko: '담는 양', unit: 'mL', op: '≥', range: [5, 1000], link: 'tray' },
+};
+const M2M_PART_TPL = {
+  gun: [
+    { link: 'muzzle', name: '총구', specs: ['muzzleD'], motions: [] },
+    { link: 'trigger', name: '방아쇠', specs: ['trigStroke', 'trigForce'], motions: [{ kind: 'linear', when: '사람이 당길 때' }] },
+    { link: 'grip', name: '손잡이', specs: ['gripAngle'], motions: [] },
+    { link: 'body', name: '몸통', specs: ['gunLen'], motions: [] },
+    { link: 'wheel', name: '링 바퀴(안쪽)', specs: ['ringD', 'rings'], motions: [{ kind: 'rotate', when: '방아쇠를 당기는 동안' }] },
+  ],
+};
+function m2mPartsFrom(shape) {
+  const T = M2M_PART_TPL[shape]; if (!T) return [];
+  return T.map((t, i) => ({ id: 'pt' + i, name: t.name, link: t.link, source: 'default',
+    specs: t.specs.map(k => ({ key: k, op: M2M_PSPEC[k].op, value: '', source: 'default' })), motions: t.motions.map(m => ({ kind: m.kind, when: m.when, traits: {}, source: 'default' })) }));
+}
+// 사양 한 줄 판정: 값이 비면 '정하지 않음', 3D와 이을 수 있으면 잰 값과 비교, 아니면 미검증
+function m2mSpecEval(x, M) {
+  if (x.value === '' || x.value == null) return { state: 'none', got: null, how: '정하지 않음' };
+  const E = x.key && M2M_PSPEC[x.key], got = E && !E.noCalc && M && M.measures ? M.measures[x.key] : null;
+  if (got == null || !isFinite(+x.value)) return { state: 'unv', got: null, how: E ? (E.noCalc ? '앱이 아직 계산하지 않음' : '이 설계에서는 잴 수 없음') : '직접 쓴 항목: 기록만 함' };
+  const v = +x.value, tol = Math.max(1e-6, Math.abs(v) * 0.01), ok = x.op === '≤' ? got <= v + tol : x.op === '≥' ? got >= v - tol : Math.abs(got - v) <= tol;
+  return { state: ok ? 'ok' : 'bad', got, how: E.design ? '설계 입력으로 쓰고 3D에서 다시 잼' : '3D에서 잼' };
+}
+// 동작 한 줄 판정: 이은 부품의 실제 움직임 종류와 값(1%)을 비교
+function m2mMotionEval(part, mo, M) {
+  const pm = part.link && M && M.partMotion ? M.partMotion[part.link] : null;
+  if (!pm) return { state: 'unv', how: part.link ? '이 설계에 그 부품이 없음' : '3D 부품과 잇지 않음: 기록만 함', got: null };
+  const mk = mo.kind && mo.kind !== 'none' ? mo.kind : null;
+  if (!pm.kind) return { state: mk ? 'bad' : 'ok', how: mk ? '이 부위는 움직이지 않게 설계됨' : '고정: 3D에서도 움직이지 않음', got: '고정' };
+  if (!mk) return { state: 'bad', how: `실제로는 ${M2M_MOTIONS[pm.kind].ko}`, got: M2M_MOTIONS[pm.kind].ko };
+  const same = mk === pm.kind || (mk === 'recip' && pm.kind === 'linear') || (mk === 'linear' && pm.kind === 'recip');
+  if (!same) return { state: 'bad', how: `실제 움직임은 ${M2M_MOTIONS[pm.kind].ko}`, got: M2M_MOTIONS[pm.kind].ko };
+  const bad = Object.entries(mo.traits || {}).filter(([k, v]) => v !== '' && v != null && isFinite(+v) && pm[k] != null && Math.abs(pm[k] - +v) > Math.abs(+v) * (k === 'rpm' ? 0.05 : 0.01) + 1e-6);   // 회전수는 기어 잇수가 정수라 5%
+  const unk = Object.entries(mo.traits || {}).filter(([k, v]) => v !== '' && v != null && pm[k] == null);
+  const got = [M2M_MOTIONS[pm.kind].ko, ...Object.entries(pm).filter(([k]) => k !== 'kind').map(([k, v]) => `${(M2M_TRAITS[k] || [k])[0]} ${fmt(v, 1)} ${(M2M_TRAITS[k] || ['', ''])[1]}`)].join(', ');
+  return { state: bad.length ? 'bad' : unk.length ? 'unv' : 'ok', how: bad.length ? bad.map(([k]) => (M2M_TRAITS[k] || [k])[0] + '이(가) 다름').join(', ') : unk.length ? '일부 값은 잴 수 없음' : '3D 부품의 움직임과 같음', got };
 }

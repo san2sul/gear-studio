@@ -43,6 +43,19 @@ const fs = require('fs'), path = require('path'), NM = path.join(__dirname, '../
     if (x1.ringD !== 30 || x1.ev !== 'ok,bad,unv') bad.push('추가 항목 ' + JSON.stringify(x1));
     await p.click('#stSteps button[data-st="4"]'); await p.waitForTimeout(500); await shot(9);
     if (!(await p.evaluate(() => /요청서 추가 항목/.test(document.getElementById('stBody').innerText)))) bad.push('시뮬레이션에 추가 항목 없음');
+    // 부위별 사양과 동작: 총구 34 mm, 방아쇠 20 mm(3D는 2 mm라 미달), 링 바퀴 50 rpm(설계 입력), 새 부위 '물통 뚜껑'(미검증)
+    await p.click('#stSteps button[data-st="1"]'); await p.waitForTimeout(400);
+    const n0 = await p.evaluate(() => P.req.parts.length); if (n0 !== 5) bad.push('기본 부위 수 ' + n0);
+    const setv = async (sel, v) => { await p.fill(sel, v); await p.dispatchEvent(sel, 'change'); await p.waitForTimeout(700); };
+    await setv('input[data-ps="0:0:value"]', '34'); await setv('input[data-pm="1:0:t.stroke_mm"]', '20'); await setv('input[data-pm="4:0:t.rpm"]', '50');
+    await p.fill('#ppNew', '물통 뚜껑'); await p.click('button[data-act="ppAdd"]'); await p.waitForTimeout(300);
+    await p.click('button[data-act="psAdd"][data-p="5"]'); await p.waitForTimeout(300); await setv('input[data-ps="5:0:label"]', '여는 각도'); await setv('input[data-ps="5:0:value"]', '90');
+    await p.click('button[data-act="pmAdd"][data-p="5"]'); await p.waitForTimeout(300); await p.selectOption('select[data-pm="5:0:kind"]', 'swing'); await p.waitForTimeout(500);
+    await p.evaluate(() => document.getElementById('stParts').scrollIntoView()); await shot(10);
+    await p.click('#stSteps button[data-st="4"]'); await p.waitForTimeout(600);
+    await p.evaluate(() => { const f = [...document.querySelectorAll('#stBody legend')].find(l => /부위별/.test(l.textContent)); f && f.scrollIntoView(); }); await shot(11);
+    const pt = await p.evaluate(() => ({ mz: design.muzzleD, rpm: design.wheelRpm, ev: P.req.parts.map(q => q.specs.map(x => m2mSpecEval(x, model).state).concat(q.motions.map(m => m2mMotionEval(q, m, model).state)).join('/')).join(' '), txt: /부위별 사양과 동작/.test(document.getElementById('stBody').innerText) }));
+    if (pt.mz !== 34 || pt.rpm !== 50 || !pt.txt || pt.ev !== 'ok none/none/bad none none none/none/ok unv/unv') bad.push('부위 ' + JSON.stringify(pt));
     // 요청서 고치기: 총 길이 160 → 설계에 반영, 동력 '손힘만' → B안 선택 풀림
     await p.click('#stSteps button[data-st="1"]'); await p.waitForTimeout(400);
     await p.fill('input[data-rqp="shape:length"]', '160'); await p.dispatchEvent('input[data-rqp="shape:length"]', 'change'); await p.waitForTimeout(1200);

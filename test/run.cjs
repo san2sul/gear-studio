@@ -166,4 +166,17 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(ev({ key: 'liquid', op: '≥', value: 20 }).state === 'ok', `추가 항목: 비누액 ${M.measures.liquid}`);
   ok(ev({ key: 'rate', op: '≥', value: 4 }).state === 'ok' && ev({ key: 'rate', op: '≥', value: 6 }).state === 'bad', '추가 항목: 방울 자리');
   ok(ev({ key: 'weight', op: '≤', value: 300 }).state === 'unv' && ev({ key: null, label: '색', op: '=', value: '파랑' }).state === 'unv', '추가 항목: 계산 못 하는 것은 미검증'); }
+{ // 15. 부위별 사양과 동작: 3D와 이은 부위는 설계 입력·잰 값과 비교, 나머지는 미검증
+  const R = C.m2mRequest('총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함');
+  ok(R.parts.length === 5 && R.parts.map(p => p.link).join() === 'muzzle,trigger,grip,body,wheel', `부위: 총 기본 부위 ${R.parts.map(p => p.name)}`);
+  ok(C.m2mRequest('버튼을 누르면 비누방울이 나오는 장난감').parts.length === 0, '부위: 모양이 없으면 기본 부위 없음');
+  const M = C.buildModel(C.bubbleDesign({ muzzleD: 38 })), P = n => R.parts.find(p => p.link === n);
+  ok(!M.checks.some(c => c.st === 'bad'), '부위: 총구 38 mm도 검사 통과');
+  ok(C.m2mSpecEval({ key: 'muzzleD', op: '=', value: 38 }, M).state === 'ok' && C.m2mSpecEval({ key: 'muzzleD', op: '=', value: 30 }, M).state === 'bad', `부위: 총구 지름 비교 (${M.measures.muzzleD})`);
+  ok(C.m2mSpecEval({ key: 'trigForce', op: '≤', value: 10 }, M).state === 'unv' && C.m2mSpecEval({ key: null, label: '색', op: '=', value: '빨강' }, M).state === 'unv' && C.m2mSpecEval({ key: 'muzzleD', op: '=', value: '' }, M).state === 'none', '부위: 계산 못 하는 사양은 미검증, 빈 값은 정하지 않음');
+  ok(C.m2mMotionEval(P('trigger'), { kind: 'linear', traits: { stroke_mm: 2 } }, M).state === 'ok' && C.m2mMotionEval(P('trigger'), { kind: 'linear', traits: { stroke_mm: 20 } }, M).state === 'bad', '부위: 방아쇠 행정 비교');
+  ok(C.m2mMotionEval(P('wheel'), { kind: 'rotate', traits: { rpm: 40 } }, M).state === 'ok' && C.m2mMotionEval(P('wheel'), { kind: 'swing', traits: {} }, M).state === 'bad', '부위: 링 바퀴 회전 비교');
+  ok(C.m2mMotionEval(P('grip'), { kind: 'rotate', traits: {} }, M).state === 'bad' && C.m2mMotionEval(P('grip'), { kind: 'none', traits: {} }, M).state === 'ok', '부위: 고정 부위');
+  ok(C.m2mMotionEval({ name: '뚜껑', link: '' }, { kind: 'swing', traits: {} }, M).state === 'unv', '부위: 3D와 잇지 않은 부위는 미검증');
+  const big = C.buildModel(C.bubbleDesign({ muzzleD: 60 })); ok(big.checks.some(c => c.st === 'bad' && /총구/.test(c.txt)), '부위: 총구가 너무 크면 검사 실패'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);
