@@ -35,7 +35,7 @@ const M2M_WORDS = [
   ['grip', /잡[았고기는다아]|집[었고기는어게]|그리퍼|집게|grip|grab|pick/i],
   ['vibrate', /진동|떨[리림게]|흔들흔들|vibrat|shak/i],
   ['intermittent', /간헐|멈췄다|멈추[고며]|칸씩|한 ?칸|정지했다|돌다가? ?멈|index|indexing|step/i],
-  ['swing', /요동|흔들|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
+  ['swing', /요동|흔들|왔다 ?갔다|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
   ['recip', /왕복|피스톤|앞뒤로|위아래로|밀었다|밀고 ?당|두드리|찍[었고]|reciproc|back and forth|piston|stamp|tap/i],
   ['lift', /들어 ?올|올리|승강|끌어 ?올|감아 ?올|리프트|lift|hoist|raise/i],
   ['linear', /직선|이동|밀어|전진|슬라이드|옮기|보내|이송|linear|slide|move|push/i],

@@ -1,6 +1,6 @@
 /* ---- 이벤트 ---- */
 function selectTab(t) {
-  const map = { box: ['tabBox', 'paneBox'], pair: ['tabPair', 'panePair'], train: ['tabTrain', 'paneTrain'], cam: ['tabCam', 'paneCam'], link: ['tabLink', 'paneLink'], find: ['tabFind', 'paneFind'], std: ['tabStd', 'paneStd'], asm: ['tabAsm', 'paneAsm'], fit: ['tabFit', 'paneFit'] };
+  const map = { box: ['tabBox', 'paneBox'], pair: ['tabPair', 'panePair'], train: ['tabTrain', 'paneTrain'], cam: ['tabCam', 'paneCam'], link: ['tabLink', 'paneLink'], find: ['tabFind', 'paneFind'], std: ['tabStd', 'paneStd'], asm: ['tabAsm', 'paneAsm'], fit: ['tabFit', 'paneFit'], studio: ['modeEasy', 'paneStudio'] };
   for (const [k, [tb, pn]] of Object.entries(map)) { $(tb).setAttribute('aria-selected', k === t); $(pn).style.display = k === t ? 'flex' : 'none'; }
   if (t === 'box') drawShapeEd();
   if (t === 'train') { if (!tD) tD = defaultTrain(); renderTrainForm(); if (!design || design.kind !== 'train' || (tD.enclose && tD.enclose.on)) rebuildTrain(); }
@@ -8,6 +8,8 @@ function selectTab(t) {
   if (t === 'link') { if (!kD) kD = linkageDefault(); renderLinkForm(); if (!design || design.kind !== 'linkage') rebuildLink(); }
   if (t === 'find') renderFind();
   if (t === 'std') { renderStd(); stdPreview(); }
+  const easy = t === 'studio'; $('modeExpert').setAttribute('aria-selected', !easy); document.querySelector('.tabs').hidden = easy; if (!easy) stLastTab = t;
+  if (easy) stRender();
   if (t === 'fit') fitShow();
   if (t === 'asm') { renderAsm(); if (!design || design.kind !== 'asm') asmRebuild(0, true); }
 }

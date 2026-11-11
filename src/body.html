@@ -1,12 +1,24 @@
 
 <div class="app">
   <header class="top">
-    <h1>기어 <span>설계실</span></h1>
-    <p>평기어 · 헬리컬·헤링본 · 베벨 · 유성 · 랙 · 웜 · 사이클로이드 · 캠 · 크랭크 기구 · 기어박스 자동 설계 · 모터·마운트·제어 · 자유 조립 · 맞물림 시뮬레이션 · 3D 프린팅용 STL</p>
+    <h1>Motion-to-Machine <span>Studio</span></h1>
+    <p>원하는 동작을 말하면 기구를 찾아 설계하고, 움직임을 검증하고, 3D 프린팅 파일까지 만듭니다 · 기어 설계실의 모든 도구는 “전문 도구”에</p>
   </header>
 
   <aside>
-    <div class="tabs" role="tablist">
+    <div class="mode" role="tablist" aria-label="화면 모드">
+      <button role="tab" id="modeEasy" aria-selected="true">동작으로 설계</button>
+      <button role="tab" id="modeExpert" aria-selected="false">전문 도구</button>
+    </div>
+
+    <!-- 동작으로 설계 (스튜디오) -->
+    <section id="paneStudio" style="display:flex;flex-direction:column;gap:12px">
+      <nav class="steps" id="stSteps" aria-label="설계 단계"></nav>
+      <div class="row" style="align-items:center;justify-content:space-between"><p class="hint" id="stNext" style="flex:1"></p><label class="chk" style="font-size:12px"><input type="checkbox" id="stExpert"> 전문 모드</label></div>
+      <div id="stBody" style="display:flex;flex-direction:column;gap:12px"></div>
+    </section>
+
+    <div class="tabs" role="tablist" hidden>
       <button role="tab" id="tabBox" aria-selected="true">기어박스 자동 설계</button>
       <button role="tab" id="tabPair" aria-selected="false">기어 직접 설계</button>
       <button role="tab" id="tabTrain" aria-selected="false">자유 조립</button>

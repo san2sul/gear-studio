@@ -61,6 +61,7 @@ port = {
 - 자세: 뒤 기구 입력 dir 를 앞 출력 dir 반대로 돌리고, 입력 자리를 앞 출력 + dir·g + 옆·거리로. '자동'이면 상자가 덜 겹치는 방향·더 긴 벨트를 고름.
 - v18: 부하 거슬러 계산 (뒤 입력 토크 × 최대 속도비 ÷ 효율을 앞에 더함, 1번 기구 drive.extraT 로 모터 다시 고름), 공통 바탕판·기둥 (linkage D.cornerHoles, model.feet).
 - v19: 직선 출력 → 랙·피니언 이음 (랙은 움직이는 부품 옆에 붙고, 피니언 축 위로 뒤 기구). 직선 포트 값은 표 없이 바로 잼(리드스크루 되돌아옴 반영).
+- v24: Motion-to-Machine Studio. 첫 화면 = "동작으로 설계"(src/ui/studio.js, 여섯 단계), 기존 탭 = "전문 도구". 엔진 src/studio/core.js: M2M_MOTIONS/PURPOSES/TRAITS 분류, m2mParse(규칙 해석, 값마다 source), m2mQuestions, m2mFilled(빈 값 → default), M2M_KB(기구 카드: synth 역산·measure 재측정·range·장단점), m2mEval(역산→buildModel→linkMotion 재측정→요구치 1% 비교), m2mRecommend. AI 해석은 Artifact sample 기능(claude.use('sample').json)으로 명세서만 만들고 출처 'ai'로 표시. 프로젝트는 localStorage m2m.projects / m2m.p.<id>, 파일 .m2m.json(schema m2m.project/1). 설계 문서: https://claude.ai/artifact/PrD212deZJKQXu4JUB5Agi
 - v23: 프린터 보정. core/files.js 의 FIT {outer, hole, backlash}: extrudeTris 가 테두리를 fitOffset 으로 줄이고 구멍을 키움(테두리·다른 구멍과 0.4 mm 여유를 남기게 줄임), gearOutline 이 백래시를 더함. fitCoupon()(drive.js)은 fitZero 로 보정 없이 시험편을 만듦. 값은 ui/fit.js 가 localStorage 'gearStudio.fit' 에 둠. 기본 0이라 시험·설계는 그대로.
 - v22: 닫힌 고리(tie).
 - v21: 갈래(src)와 크기별 규칙. buildModel(D, { sub: true })는 크기 점검을 건너뜀(조립 안의 기구용).

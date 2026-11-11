@@ -99,4 +99,5 @@ setShape('rect');
 
 if (initThree()) requestAnimationFrame(loop);
 runBox();
+selectTab('studio');
 </script>
