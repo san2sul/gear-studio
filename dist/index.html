@@ -6086,7 +6086,8 @@ function bubbleDesign(p = {}) {
   // 링 중심 반지름: 이웃 링 사이 살 4 mm 이상, 허브(반지름 8)와 링 사이 3 mm 이상
   const ro = Q.ringD / 2 + Q.ringRim, R = Math.ceil(Math.max((2 * ro + 4) / (2 * Math.sin(PI / Q.rings)), 8 + 3 + ro) * 2) / 2;
   // 바퀴 모터: N20 300 rpm(6 V 정격). 3 V에서는 전압 비례·부하 80%로 어림 (가정값)
-  const M = MOTORS.n20_300, motRpm = +(M.rpmNL * (Q.volt / M.volt) * 0.8).toFixed(1);
+  // 바퀴 모터 회전수: 공학 계산값을 받으면 그것(calc), 아니면 무부하의 80%로 어림(assume)
+  const M = MOTORS.n20_300, motRpm = Q.motRpm != null ? +Q.motRpm : +(M.rpmNL * (Q.volt / M.volt) * 0.8).toFixed(1); Q.motRpmSrc = Q.motRpm != null ? 'calc' : 'assume';
   const z2 = Math.max(Q.z1 + 4, Math.round(Q.z1 * motRpm / Q.wheelRpm));
   return { version: 1, kind: 'bubble', concept: 'B', ...Q, R, ro, motRpm, z2, box: null };
 }
@@ -6210,7 +6211,7 @@ function bubbleModel(D) {
     '3 mm 강 축을 뒤판 가운데 구멍에 끼우고 큰 기어(뒤쪽), 링 바퀴(앞쪽) 순서로 끼웁니다. 피니언과 맞물리는지 손으로 돌려 봅니다.', '팬을 130 모터 축에 끼웁니다(맨 위 링과 같은 높이).',
     '스위치를 몸통 왼쪽 반의 손잡이 앞에, 건전지 홀더를 손잡이 안에 넣고 스위치 → 두 모터를 병렬로 잇습니다.', '방아쇠를 축 핀에 끼워 스위치를 누르는지 확인하고, 몸통 오른쪽 반을 덮어 붙입니다.', '몸통 앞을 머리 몸체 뒤판에 붙이고, 앞 덮개를 붙입니다.', '비누액 통에 액을 액면 표시까지 붓고 아래에서 밀어 넣습니다.'];
   model.table = { head: ['부품', '종류', '핵심 치수', '회전수'], rows: [{ part: 0, cells: ['링 바퀴', `링 ${D.rings}개`, `지름 ${fmt(2 * G.wheelR, 0)} mm, 링 ${D.ringD} mm`, fmt(wheelGot, 1) + ' rpm'] },
-    { part: 1, cells: ['큰 기어', '평기어', `m${D.m} z${D.z2}`, fmt(wheelGot, 1) + ' rpm'] }, { part: 2, cells: ['피니언', '평기어', `m${D.m} z${D.z1}`, fmt(D.motRpm, 0) + ' rpm (가정)'] }, { part: 3, cells: ['팬', '날개 4장', `지름 ${fmt(2 * G.fanR, 0)} mm`, fmt(wFan * 60 / 2 / PI, 0) + ' rpm'] }] };
+    { part: 1, cells: ['큰 기어', '평기어', `m${D.m} z${D.z2}`, fmt(wheelGot, 1) + ' rpm'] }, { part: 2, cells: ['피니언', '평기어', `m${D.m} z${D.z1}`, fmt(D.motRpm, 0) + (D.motRpmSrc === 'calc' ? ' rpm (계산)' : ' rpm (가정)')] }, { part: 3, cells: ['팬', '날개 4장', `지름 ${fmt(2 * G.fanR, 0)} mm`, fmt(wFan * 60 / 2 / PI, 0) + ' rpm'] }] };
   model.hud = [['링 바퀴', fmt(wheelGot, 1) + ' rpm'], ['방울 자리', fmt(bubblesPerS, 1) + ' /초'], ['감속', `${D.z2}:${D.z1}`]];
   // OpenSCAD: 치수 변수로 다시 만드는 코드는 아직 없음(미구현) → 출력한 STL을 조립 위치에 놓는 파일
   const mm = A => `multmatrix([[${A.slice(0, 4).map(v => fmt(v, 4)).join(',')}],[${A.slice(4, 8).map(v => fmt(v, 4)).join(',')}],[${A.slice(8, 12).map(v => fmt(v, 4)).join(',')}],[0,0,0,1]])`;
@@ -6250,7 +6251,7 @@ function bubbleTestBest(T) {
   return { ringD: best(T.A), wheelT: best(T.B), dist: T.dist ? +T.dist : null };
 }
 // ---- 작동 준비도: 관문별 항목 상태. ok 통과 · bad 미달 · test 실험 필요 · none 아직 앱에 없음 ----
-function bubbleReadiness(D, M, T, tests) {
+function bubbleReadiness(D, M, T, tests, calc = null) {
   const rows = [], add = (gate, item, state, how) => rows.push({ gate, item, state, how });
   const clr = M.checks.filter(c => c.st !== 'warn' && c.st !== 'info'), badC = clr.filter(c => c.st === 'bad').length, badV = (M.verify || []).filter(r => r.ok === false).length;
   add(1, '요청서 꼭 정할 칸', 'ok', '요청서 단계에서 확인');
@@ -6261,13 +6262,63 @@ function bubbleReadiness(D, M, T, tests) {
   add(2, `판 두께 ${D.wheelT} mm에서 막이 유지됨`, t ? (t === 'no' ? 'bad' : 'ok') : 'test', t ? { ok: '시험: 잘 나옴', few: '시험: 조금 나옴', no: '시험: 안 나옴' }[t] : '링 막대 B로 실험하세요');
   const dist = T && T.dist ? +T.dist : null;
   add(2, `팬 거리 ${BUB_FAN_DIST} mm에서 방울이 떨어져 나감`, dist == null ? 'test' : dist === BUB_FAN_DIST ? 'ok' : 'bad', dist == null ? '팬 시험대로 실험하세요' : dist === BUB_FAN_DIST ? '시험에서 가장 잘 된 거리와 같음' : `시험에서는 ${dist} mm가 가장 잘 됨 → 설계의 팬 거리는 아직 바꿀 수 없음(미구현)`);
-  for (const x of ['모터 토크 대 부하(안전율)', '팬 바람 세기', '기어 이 굽힘 강도', '방아쇠 스프링과 스위치 누르는 힘', '건전지 사용 시간']) add(3, x, 'none', '공학 계산 단계에서 만들 예정');
+  if (calc) for (const r of calc.rows) add(3, r.ko, r.ok ? 'ok' : 'bad', `${fmt(r.value, 2)} ${r.unit} (기준 ${r.need}) · 가정값 ${r.assume.length}개 사용`);
+  else for (const x of ['모터 토크 대 부하(안전율)', '팬 바람 세기', '기어 이 굽힘 강도', '방아쇠 스프링과 스위치 누르는 힘', '건전지 사용 시간']) add(3, x, 'none', '공학 계산을 넘기지 않음');
   for (const x of ['나사 보스·맞춤 핀', '프린터 보정(공차) 적용', '회로도·전선 통로', '물과 전기 분리', '방아쇠 안내 홈·복귀 스프링 자리']) add(4, x, 'none', '상세 설계 단계에서 만들 예정');
   for (const x of ['삼각형 단위 간섭', '조립 순서대로 들어가는지', '출력 가능성(오버행·두께)']) add(5, x, 'none', '검증 단계에서 만들 예정');
   const last = (tests || []).slice(-1)[0]; add(6, '시제품에서 방울이 나옴', last ? (last.result === 'ok' ? 'ok' : 'bad') : 'test', last ? `마지막 기록: ${{ ok: '잘 나옴', small: '작게 나옴', none: '안 나옴' }[last.result] || last.result}` : '시제품을 출력해 시험하세요');
   const gOK = g => rows.filter(x => x.gate === g).every(x => x.state === 'ok');
   const level = !gOK(5) && rows.some(x => x.gate === 5 && x.state === 'bad') ? 0 : gOK(1) && rows.filter(x => x.gate === 5 && x.state !== 'none').every(x => x.state === 'ok') ? (gOK(2) && gOK(3) && gOK(4) && gOK(5) ? (gOK(6) ? 3 : 2) : 1) : 0;
   return { rows, level, label: ['아직 움직이는 모형도 안 됨', '움직이는 모형까지', '시제품을 만들어 볼 단계', '작동하는 제품'][level] };
+}
+
+// ---- 관문 3 공학 계산 (비누방울 총 B안) ----
+// 모든 식은 결정적. 재료·마찰·효율처럼 알 수 없는 값은 BUB_ASSUME에 모아 '가정값'으로 표시하고, 원리 시험·시제품 시험으로 확인함.
+const BUB_ASSUME = {
+  rhoLiq: [1000, 'kg/m³', '비누액 밀도'], muLiq: [0.002, 'Pa·s', '비누액 점도(물의 2배)'], dragK: [3, '배', '링 구멍·가장자리·표면장력 때문에 끌림을 평판 계산의 3배로 잡음'],
+  muShaft: [0.35, '', '출력 부품 구멍과 3 mm 축 사이 마찰 계수'], startK: [2, '배', '처음 돌 때 마찰(정지 마찰)'], etaGear: [0.85, '', '출력 평기어 한 쌍 효율'],
+  rhoPLA: [1.24, 'g/cm³', 'PLA 밀도(속 채움 100%로 계산 → 무겁게 잡음)'], cq: [0.02, '', '팬 토크 계수 Cq (작은 4날 팬)'], rhoAir: [1.2, 'kg/m³', '공기 밀도'], slip: [0.5, '', '팬 날개 피치 대비 실제 바람 비율'],
+  airLo: [1, 'm/s', '방울을 부풀릴 바람 하한(원리 시험으로 확인)'], airHi: [4, 'm/s', '막이 터지지 않을 바람 상한(원리 시험으로 확인)'], sigPLA: [15, 'MPa', 'PLA 출력 기어 허용 굽힘 응력(반복 하중, 보수적)'],
+  fSwitch: [1.5, 'N', '마이크로 스위치 누르는 힘'], kSpring: [0.3, 'N/mm', '권장 복귀 스프링 상수'], preSpring: [3, 'mm', '스프링 초기 압축'], fReturnNeed: [0.3, 'N', '방아쇠가 돌아오는 데 필요한 힘(미끄럼 마찰)'],
+  i0Fan: [0.15, 'A', '130 모터 무부하 전류'], i0N20: [0.04, 'A', 'N20 모터 무부하 전류(3 V)'], capAA: [2000, 'mAh', 'AA 알칼리 2개 직렬 용량(0.2 A 안팎)'], lifeNeed: [1, '시간', '연속 사용 시간 최소'],
+};
+const bA = k => BUB_ASSUME[k][0];
+// 닫힌 메쉬 부피 (mm³): 원점 사면체 부피 합. 삼각형 = [x,y,z 꼭짓점 3개를 이은 9개 수]
+function trisVolume(tris) { let v = 0; for (const t of tris) { const [ax, ay, az, bx, by, bz, cx, cy, cz] = t; v += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6; } return Math.abs(v); }
+// Lewis 치형 계수 (압력각 20°, 표준 이)
+const LEWIS_Y = [[12, 0.245], [13, 0.261], [14, 0.277], [15, 0.290], [16, 0.296], [17, 0.303], [18, 0.309], [19, 0.314], [20, 0.322], [22, 0.331], [24, 0.337], [26, 0.346], [28, 0.353], [30, 0.359], [34, 0.371], [38, 0.384], [43, 0.397], [50, 0.409], [60, 0.422], [75, 0.435], [100, 0.447]];
+function lewisY(z) { const T = LEWIS_Y; if (z <= T[0][0]) return T[0][1]; for (let i = 1; i < T.length; i++) if (z <= T[i][0]) { const [z0, y0] = T[i - 1], [z1, y1] = T[i]; return y0 + (y1 - y0) * (z - z0) / (z1 - z0); } return T.at(-1)[1]; }
+// 직류 모터 직선 모델: 정격(rpm, T)과 무부하 rpm → 멈춤 토크. 전압에 비례해 줄임
+function dcMotor(Mo, volt) { const k = volt / Mo.volt, n0 = Mo.rpmNL * k, Ts = Mo.T * Mo.rpmNL / (Mo.rpmNL - Mo.rpm) * k; return { n0, Ts, speedAt: T => Math.max(0, n0 * (1 - T / Ts)) }; }
+function bubbleEngCalc(D, M, opt = {}) {
+  const G = bubbleGeom(D), rows = [], row = (key, ko, value, unit, need, ok, how, assume) => rows.push({ key, ko, value, unit, need, ok, how, assume });
+  const part = n => M.parts.find(p => p.name === n), mass = n => trisVolume(part(n).tris) / 1000 * bA('rhoPLA');   // g
+  // 1) 바퀴 모터: 부하 토크
+  const Rw = G.wheelR / 1000, s = Math.max(0, Math.min(2 * G.wheelR, G.tray.level + G.wheelR)) / 1000;   // 잠긴 깊이 m
+  const seg = Rw * Rw * Math.acos((Rw - s) / Rw) - (Rw - s) * Math.sqrt(Math.max(0, 2 * Rw * s - s * s)), rm = Rw - s / 2, chord = 2 * Math.sqrt(Math.max(0, 2 * Rw * s - s * s));
+  const w2 = D.wheelRpm * 2 * PI / 60, v = w2 * rm, Re = bA('rhoLiq') * v * Math.max(chord, 1e-3) / bA('muLiq'), Cf = Re > 0 ? 1.328 / Math.sqrt(Re) : 0;
+  const Tdrag = 0.5 * bA('rhoLiq') * v * v * Cf * 2 * seg * rm * bA('dragK') * 1000;   // N·mm
+  const mWheel = mass('링 바퀴') + mass('큰 기어'), Tfric = bA('muShaft') * mWheel / 1000 * 9.81 * 1.5;   // 축 반지름 1.5 mm → N·mm
+  const ratio = D.z2 / D.z1, TLrun = (Tdrag + Tfric) / (ratio * bA('etaGear')), TLstart = (Tdrag + Tfric * bA('startK')) / (ratio * bA('etaGear'));
+  const n20 = dcMotor(MOTORS.n20_300, D.volt), margin = n20.Ts / TLstart, nPred = n20.speedAt(TLrun), wheelPred = nPred / ratio;
+  row('torque', '바퀴 모터 토크 여유(처음 돌 때)', margin, '배', '≥ 2', margin >= 2, `멈춤 토크 ${fmt(n20.Ts, 1)} N·mm ÷ 걸리는 토크 ${fmt(TLstart, 2)} N·mm (끌림 ${fmt(Tdrag, 3)} + 축 마찰 ${fmt(Tfric * bA('startK'), 2)} N·mm를 감속 ${D.z2}:${D.z1}, 효율 ${bA('etaGear')}로 나눔). 잠긴 깊이 ${fmt(s * 1000, 1)} mm, 바퀴+기어 ${fmt(mWheel, 1)} g`, ['rhoLiq', 'muLiq', 'dragK', 'muShaft', 'startK', 'etaGear', 'rhoPLA']);
+  row('wheel_pred', '부하를 넣은 링 바퀴 회전수', wheelPred, 'rpm', `목표 ${D.wheelRpm} ±15%`, Math.abs(wheelPred - D.wheelRpm) <= 0.15 * D.wheelRpm, `모터 직선 모델: 무부하 ${fmt(n20.n0, 0)} rpm × (1 − ${fmt(TLrun, 2)}/${fmt(n20.Ts, 1)}) = ${fmt(nPred, 0)} rpm ÷ ${fmt(ratio, 2)}. 설계는 모터 ${fmt(D.motRpm, 0)} rpm(80% 가정)으로 잇수를 정함`, ['etaGear']);
+  // 2) 팬: 공기 토크로 회전수, 날개 피치로 바람
+  const m130 = dcMotor(MOTORS.m130, D.volt), Dm = 2 * G.fanR / 1000; let nf = m130.n0;
+  for (let i = 0; i < 20; i++) { const Ta = bA('cq') * bA('rhoAir') * (nf / 60) ** 2 * Dm ** 5 * 1000; nf = m130.speedAt(Ta); }
+  const Tair = bA('cq') * bA('rhoAir') * (nf / 60) ** 2 * Dm ** 5 * 1000, pitch = 4.5 * 360 / 50, vAir = pitch / 1000 * nf / 60 * bA('slip');
+  row('air', '팬 바람 세기(링 자리)', vAir, 'm/s', `${bA('airLo')}~${bA('airHi')}`, vAir >= bA('airLo') && vAir <= bA('airHi'), `날개 피치 ${fmt(pitch, 1)} mm(두께 4.5 mm에 50° 비틀림) × 회전수 ${fmt(nf, 0)} rpm × 비율 ${bA('slip')}. 팬 회전수는 공기 토크 ${fmt(Tair, 4)} N·mm를 넣은 모터 직선 모델`, ['cq', 'rhoAir', 'slip', 'airLo', 'airHi']);
+  // 3) 기어 이 굽힘 (Lewis): 바퀴가 걸려 모터가 멈춘 최악의 경우
+  const Ft = n20.Ts / (D.m * D.z1 / 2), b = 4, sig1 = Ft / (b * D.m * lewisY(D.z1)), sig2 = Ft / (b * D.m * lewisY(D.z2)), sf = bA('sigPLA') / Math.max(sig1, sig2);
+  row('gear', '기어 이 굽힘 강도 안전율(모터 멈춤)', sf, '배', '≥ 2', sf >= 2, `이 끝 힘 ${fmt(Ft, 2)} N = 멈춤 토크 ÷ 피니언 반지름 ${fmt(D.m * D.z1 / 2, 1)} mm. 응력 = 힘 ÷ (이폭 ${b} × 모듈 ${D.m} × Y). 피니언 Y ${fmt(lewisY(D.z1), 3)} → ${fmt(sig1, 1)} MPa, 큰 기어 ${fmt(sig2, 1)} MPa, 허용 ${bA('sigPLA')} MPa`, ['sigPLA']);
+  // 4) 방아쇠: 당기는 힘과 되돌아오는 힘
+  const stroke = (M.measures && M.measures.trigStroke) || 2, pull = (bA('fSwitch') + bA('kSpring') * (bA('preSpring') + stroke)) * 1.1, need = opt.trigForceMax || 15, ret = bA('kSpring') * bA('preSpring');
+  row('trig_pull', '방아쇠 당기는 힘', pull, 'N', `≤ ${need}`, pull <= need, `(스위치 ${bA('fSwitch')} N + 스프링 ${bA('kSpring')} N/mm × (초기 ${bA('preSpring')} + 행정 ${stroke}) mm) × 마찰 1.1. 기준은 요청서의 당기는 힘${opt.trigForceMax ? '' : '(정하지 않아 15 N)'}`, ['fSwitch', 'kSpring', 'preSpring']);
+  row('trig_ret', '방아쇠 되돌아오는 힘', ret, 'N', `≥ ${bA('fReturnNeed')}`, ret >= bA('fReturnNeed'), `스프링 ${bA('kSpring')} N/mm × 초기 압축 ${bA('preSpring')} mm. 권장 스프링: 바깥 지름 4~5 mm, 자유 길이 10 mm, 상수 약 ${bA('kSpring')} N/mm (자리는 상세 설계에서 만듦)`, ['kSpring', 'preSpring', 'fReturnNeed']);
+  // 5) 건전지
+  const iFan = bA('i0Fan') + (MOTORS.m130.amp - bA('i0Fan')) * Math.min(1, Tair / MOTORS.m130.T), iN20 = bA('i0N20') + (MOTORS.n20_300.amp - bA('i0N20')) * Math.min(1, TLrun / MOTORS.n20_300.T), I = (iFan + iN20) * 1000, life = bA('capAA') / I;
+  row('battery', '건전지 연속 사용 시간', life, '시간', `≥ ${bA('lifeNeed')}`, life >= bA('lifeNeed'), `용량 ${bA('capAA')} mAh ÷ 전류 ${fmt(I, 0)} mA (팬 ${fmt(iFan * 1000, 0)} + 바퀴 ${fmt(iN20 * 1000, 0)} mA, 무부하 전류 + 부하 비례)`, ['i0Fan', 'i0N20', 'capAA', 'lifeNeed']);
+  return { rows, pred: { wheelRpm: wheelPred, fanRpm: nf, air: vAir }, ok: rows.every(r => r.ok) };
 }
 
 // ---- 대화로 요청서 완성하기: 칸(slot) 목록 + 규칙 추출기 + 배운 표현 ----
@@ -8528,7 +8579,8 @@ function stPNeed() {
 }
 const BUB_IN = [['ringD', '링 지름', 'mm', 10, 50], ['rings', '링 개수', '개', 3, 10], ['wheelRpm', '링 바퀴 회전수', 'rpm', 10, 90], ['volt', '건전지 전압', 'V', 1.5, 6]];
 function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.bub[k] != null) p[k] = P.bub[k];
-  if (P.bub && P.bub.wheelT != null) p.wheelT = P.bub.wheelT;   // 원리 시험에서 고른 판 두께
+  if (P.bub && P.bub.wheelT != null) p.wheelT = P.bub.wheelT;
+  if (P.bub && P.bub.motRpm != null) p.motRpm = P.bub.motRpm;   // 공학 계산으로 얻은 바퀴 모터 회전수   // 원리 시험에서 고른 판 두께
   for (const x of (P.req && P.req.extra) || []) { const v = +x.value; if (!isFinite(v) || !M2M_EXTRA[x.key]) continue;   // 요청서 추가 항목 중 설계 입력
     if (x.key === 'ringD' && v >= 10 && v <= 50) p.ringD = v; if (x.key === 'rings' && v >= 3 && v <= 10) p.rings = Math.round(v); }
   const rate = ((P.req && P.req.extra) || []).find(x => x.key === 'rate' && +x.value > 0);
@@ -8570,7 +8622,7 @@ function stPDesign() {
   if (!P.design || P.design.kind !== 'bubble') return stPNeed();
   const D = P.design, G = bubbleGeom(D), fromReq = k => (stPartKeys().has(k) || (P.req.extra || []).some(x => x.key === k) || (k === 'wheelRpm' && (P.req.extra || []).some(x => x.key === 'rate'))), src = k => P.bub && P.bub[k] != null || fromReq(k) ? 'user' : 'default';
   const calc = [['링 중심 반지름', fmt(D.R, 1) + ' mm', '링 사이 살 4 mm, 허브와 3 mm 띄우는 최소값'], ['링 바퀴 지름', fmt(2 * G.wheelR, 0) + ' mm', ''], ['감속 기어', `z${D.z2} : z${D.z1} (m${D.m})`, `모터 ${fmt(D.motRpm, 0)} rpm ÷ 목표 ${D.wheelRpm} rpm에 가장 가까운 잇수`],
-    ['바퀴 모터 회전수', fmt(D.motRpm, 0) + ' rpm ' + stB('assume'), `N20 300 rpm(6 V형)을 ${D.volt} V로: 전압 비례 × 부하 80% 어림`], ['팬 지름', fmt(2 * G.fanR, 0) + ' mm', '큰 기어 이끝과 2 mm 이상 띄움'], ['비누액 통', `액면 ${fmt(G.tray.level, 1)} mm (바퀴 축 기준)`, '맨 아래 링이 잠기도록']];
+    ['바퀴 모터 회전수', fmt(D.motRpm, 0) + ' rpm ' + (D.motRpmSrc === 'calc' ? stB('calc') : stB('assume')), D.motRpmSrc === 'calc' ? '공학 계산: 부하 토크를 넣은 모터 직선 모델' : `N20 300 rpm(6 V형)을 ${D.volt} V로: 전압 비례 × 부하 80% 어림 (시뮬레이션의 공학 계산으로 바꿀 수 있음)`], ['팬 지름', fmt(2 * G.fanR, 0) + ' mm', '큰 기어 이끝과 2 mm 이상 띄움'], ['비누액 통', `액면 ${fmt(G.tray.level, 1)} mm (바퀴 축 기준)`, '맨 아래 링이 잠기도록']];
   const sp = P.req.shape.value === 'gun' ? P.req.shape.params : null;
   return `${sp ? `<fieldset><legend>요청서에서 온 값</legend><p class="hint">총 길이 ${D.gunLen} mm, 손잡이 각도 ${D.gripAngle}° ${srcB(sp.length.source)} · 바꾸려면 <button class="btn" data-go="1">요청서 고치기</button></p></fieldset>` : ''}<fieldset><legend>B안 · 요구치로 설계</legend><p class="hint">값을 바꾸면 치수를 다시 역산하고 3D와 껍데기가 바로 바뀝니다.</p>
     <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"${fromReq(k) ? ' disabled title="요청서(부위 사양·추가 항목)에서 정함"' : ''}>${fromReq(k) ? ' <span class="hint">요청서</span>' : ''} <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
@@ -8581,7 +8633,7 @@ function stPDesign() {
 function stPSim() {
   if (!P.design || !model || model.kind !== 'bubble') return stPNeed();
   const V = model.verify || [], chk = model.checks.filter(c => /사이|겹치지|누릅니다/.test(c.txt));
-  return `${stReadyCard()}<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
+  return `${stReadyCard()}${stCalcCard()}<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
     ${V.map(r => `<tr><td>${escH(r.ko)}</td><td>${r.want == null ? '—' : (r.key === 'wet_s' ? '< ' : r.key === 'dip' ? '> ' : r.key === 'air' ? '≥ ' : '') + fmt(r.want, 2) + ' ' + r.unit}</td><td>${fmt(r.got, 2)} ${r.unit}</td><td>${r.ok === true ? stB('ok') : r.ok === false ? stB('bad') : stB('calc')}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}</tbody></table></div>
     <p class="hint">“막이 5초 안에 마르지 않는다”와 바퀴 모터 회전수는 가정값입니다.</p></fieldset>
   ${(P.req.extra || []).length ? `<fieldset><legend>요청서 추가 항목</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과</th><th>상태</th><th>방법</th></tr></thead><tbody>
@@ -8609,11 +8661,25 @@ function stPartsSim() {
   return `<fieldset><legend>부위별 사양과 동작</legend><div class="tblWrap"><table class="vt"><thead><tr><th>부위</th><th>항목</th><th>요구</th><th>결과(3D)</th><th>상태</th><th>방법</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="hint">치수는 1%, 회전수는 5%(기어 잇수가 정수라서) 안이면 맞음으로 봅니다. 언제 움직이는지(“당기는 동안”)는 기록만 하고 확인하지 않습니다 ${stB('unv')}.</p></fieldset>`;
 }
+// ---- 관문 3 공학 계산 ----
+function stTrigMax() { const R = P.req; if (!R) return null; const pt = (R.parts || []).find(p => p.link === 'trigger'), x = pt && pt.specs.find(q => q.key === 'trigForce' && q.value !== '');
+  if (x) return +x.value; const i = R.inputs.find(q => q.kind === 'trigger'); return i && i.params.force_N && i.params.force_N.source !== 'default' ? +i.params.force_N.value : null; }
+function stCalc() { try { return bubbleEngCalc(P.design, model, { trigForceMax: stTrigMax() }); } catch (e) { return null; } }
+function stCalcCard() {
+  const E = stCalc(); if (!E) return '';
+  const used = [...new Set(E.rows.flatMap(r => r.assume))], wp = E.rows.find(r => r.key === 'wheel_pred');
+  return `<fieldset id="stCalc"><legend>공학 계산 (관문 3) ${stB('calc')}</legend><p class="hint">식은 앱이 정해진 규칙으로 계산합니다. 재료·마찰·효율처럼 알 수 없는 값은 ${stB('assume')}으로 두고 아래에 모두 적었습니다.</p>
+    <div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>결과</th><th>기준</th><th>상태</th><th>계산 근거</th></tr></thead><tbody>
+    ${E.rows.map(r => `<tr><td>${escH(r.ko)}</td><td>${fmt(r.value, 2)} ${r.unit}</td><td>${escH(r.need)}</td><td>${r.ok ? stB('ok') : stB('bad')}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}</tbody></table></div>
+    ${wp && !wp.ok ? `<p class="hint">설계는 바퀴 모터가 ${fmt(P.design.motRpm, 0)} rpm으로 돈다고 ${P.design.motRpmSrc === 'calc' ? '계산값을' : '어림해(가정)'} 잇수를 정했는데, 부하를 넣어 계산하면 링 바퀴가 ${fmt(wp.value, 1)} rpm으로 돕니다.</p><div class="row"><button class="btn" data-act="calcRpm">계산한 모터 회전수로 감속비 다시 정하기</button></div>` : ''}
+    <details><summary>쓴 가정값 ${used.length}개</summary><table class="vt"><tbody>${used.map(k => `<tr><td>${escH(BUB_ASSUME[k][2])}</td><td>${BUB_ASSUME[k][0]} ${BUB_ASSUME[k][1]}</td><td>${stB('assume')}</td></tr>`).join('')}</tbody></table>
+    <p class="hint">가정값은 원리 시험과 시제품 시험에서 잰 값으로 바꿔야 확실해집니다. 비누막과 실제 바람은 계산이 아니라 시험으로만 확인됩니다.</p></details></fieldset>`;
+}
 // ---- 작동 준비도 (관문 6개) ----
 const ST_GATES = { 1: '요청서', 2: '원리 시험', 3: '공학 계산', 4: '상세 설계', 5: '검증', 6: '시제품 시험' };
 const stRS = st => st === 'test' ? stBadge('assume', '실험 필요') : stB(st);
 function stReadyCard(compact) {
-  const Rd = bubbleReadiness(P.design, model, P.ptest, P.tests), cnt = s => Rd.rows.filter(r => r.state === s).length;
+  const Rd = bubbleReadiness(P.design, model, P.ptest, P.tests, stCalc()), cnt = s => Rd.rows.filter(r => r.state === s).length;
   const rows = Object.entries(ST_GATES).map(([g, ko]) => { const G = Rd.rows.filter(r => r.gate === +g), st = G.every(r => r.state === 'ok') ? 'ok' : G.some(r => r.state === 'bad') ? 'bad' : G.some(r => r.state === 'test') ? 'test' : 'none';
     return compact ? `<tr><td>${g}. ${ko}</td><td>${stRS(st)}</td><td class="hint">${G.filter(r => r.state !== 'ok').length ? G.filter(r => r.state !== 'ok').length + '개 남음' : '통과'}</td></tr>`
       : `<tr><th colspan="3">${g}. ${ko} ${stRS(st)}</th></tr>${G.map(r => `<tr><td>${escH(r.item)}</td><td>${stRS(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}`; }).join('');
@@ -8675,6 +8741,8 @@ $('stBody').addEventListener('click', e => {
   else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id) { P.chosen = b.dataset.id; P.design = null; const c = stChosenC(); stLog('개념안 선택: ' + (c ? (c.id ? c.id + '안 ' : '') + c.ko : P.chosen)); toast('골랐어요. 이 안은 아직 3D 설계가 없어 비교 정보만 이어집니다'); stSave(); stRender(); }
   else if (a === 'ptKit' && P.design) stPTestZip();
+  else if (a === 'calcRpm' && P.design) { const E = stCalc(), wp = E && E.rows.find(r => r.key === 'wheel_pred'); if (!wp) return; const ratio = P.design.z2 / P.design.z1;
+    P.bub = { ...(P.bub || {}), motRpm: +(wp.value * ratio).toFixed(1) }; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); stLog('공학 계산으로 감속비 다시 정함'); toast(`바퀴 모터 ${P.bub.motRpm} rpm(계산)으로 잇수를 다시 정했습니다: z${P.design.z2}:${P.design.z1}`); stSave(); stRender(); }
   else if (a === 'ptApply' && P.design) { const B = bubbleTestBest(P.ptest); P.bub = { ...(P.bub || {}) };
     if (B.ringD) { P.bub.ringD = B.ringD; if (P.req && m2mSlotGet(P.req, 'ringD')) m2mSlotSet(P.req, 'ringD', B.ringD, 'test'); P.req.extra = (P.req.extra || []).filter(x => x.key !== 'ringD'); }
     if (B.wheelT) P.bub.wheelT = B.wheelT;
@@ -8713,7 +8781,8 @@ $('stBody').addEventListener('change', e => {
   const el = e.target, k = el.dataset.bp; if (!k || !P) return;
   const v = parseFloat(el.value), lo = +el.dataset.lo, hi = +el.dataset.hi;
   if (!(v >= lo && v <= hi)) { toast(`${el.closest('tr').cells[0].textContent}은(는) ${lo}~${hi} 사이여야 합니다`); el.value = P.design[k]; return; }
-  P.bub = { ...(P.bub || {}), [k]: k === 'rings' ? Math.round(v) : v }; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); stSave(); stRender();
+  P.bub = { ...(P.bub || {}), [k]: k === 'rings' ? Math.round(v) : v }; if (k === 'volt') delete P.bub.motRpm;   // 전압이 바뀌면 계산한 모터 회전수는 다시 계산해야 함
+  P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); stSave(); stRender();
 });
 
 // ===== 대화로 요청서 완성하기 =====

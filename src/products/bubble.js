@@ -87,7 +87,8 @@ function bubbleDesign(p = {}) {
   // 링 중심 반지름: 이웃 링 사이 살 4 mm 이상, 허브(반지름 8)와 링 사이 3 mm 이상
   const ro = Q.ringD / 2 + Q.ringRim, R = Math.ceil(Math.max((2 * ro + 4) / (2 * Math.sin(PI / Q.rings)), 8 + 3 + ro) * 2) / 2;
   // 바퀴 모터: N20 300 rpm(6 V 정격). 3 V에서는 전압 비례·부하 80%로 어림 (가정값)
-  const M = MOTORS.n20_300, motRpm = +(M.rpmNL * (Q.volt / M.volt) * 0.8).toFixed(1);
+  // 바퀴 모터 회전수: 공학 계산값을 받으면 그것(calc), 아니면 무부하의 80%로 어림(assume)
+  const M = MOTORS.n20_300, motRpm = Q.motRpm != null ? +Q.motRpm : +(M.rpmNL * (Q.volt / M.volt) * 0.8).toFixed(1); Q.motRpmSrc = Q.motRpm != null ? 'calc' : 'assume';
   const z2 = Math.max(Q.z1 + 4, Math.round(Q.z1 * motRpm / Q.wheelRpm));
   return { version: 1, kind: 'bubble', concept: 'B', ...Q, R, ro, motRpm, z2, box: null };
 }
@@ -211,7 +212,7 @@ function bubbleModel(D) {
     '3 mm 강 축을 뒤판 가운데 구멍에 끼우고 큰 기어(뒤쪽), 링 바퀴(앞쪽) 순서로 끼웁니다. 피니언과 맞물리는지 손으로 돌려 봅니다.', '팬을 130 모터 축에 끼웁니다(맨 위 링과 같은 높이).',
     '스위치를 몸통 왼쪽 반의 손잡이 앞에, 건전지 홀더를 손잡이 안에 넣고 스위치 → 두 모터를 병렬로 잇습니다.', '방아쇠를 축 핀에 끼워 스위치를 누르는지 확인하고, 몸통 오른쪽 반을 덮어 붙입니다.', '몸통 앞을 머리 몸체 뒤판에 붙이고, 앞 덮개를 붙입니다.', '비누액 통에 액을 액면 표시까지 붓고 아래에서 밀어 넣습니다.'];
   model.table = { head: ['부품', '종류', '핵심 치수', '회전수'], rows: [{ part: 0, cells: ['링 바퀴', `링 ${D.rings}개`, `지름 ${fmt(2 * G.wheelR, 0)} mm, 링 ${D.ringD} mm`, fmt(wheelGot, 1) + ' rpm'] },
-    { part: 1, cells: ['큰 기어', '평기어', `m${D.m} z${D.z2}`, fmt(wheelGot, 1) + ' rpm'] }, { part: 2, cells: ['피니언', '평기어', `m${D.m} z${D.z1}`, fmt(D.motRpm, 0) + ' rpm (가정)'] }, { part: 3, cells: ['팬', '날개 4장', `지름 ${fmt(2 * G.fanR, 0)} mm`, fmt(wFan * 60 / 2 / PI, 0) + ' rpm'] }] };
+    { part: 1, cells: ['큰 기어', '평기어', `m${D.m} z${D.z2}`, fmt(wheelGot, 1) + ' rpm'] }, { part: 2, cells: ['피니언', '평기어', `m${D.m} z${D.z1}`, fmt(D.motRpm, 0) + (D.motRpmSrc === 'calc' ? ' rpm (계산)' : ' rpm (가정)')] }, { part: 3, cells: ['팬', '날개 4장', `지름 ${fmt(2 * G.fanR, 0)} mm`, fmt(wFan * 60 / 2 / PI, 0) + ' rpm'] }] };
   model.hud = [['링 바퀴', fmt(wheelGot, 1) + ' rpm'], ['방울 자리', fmt(bubblesPerS, 1) + ' /초'], ['감속', `${D.z2}:${D.z1}`]];
   // OpenSCAD: 치수 변수로 다시 만드는 코드는 아직 없음(미구현) → 출력한 STL을 조립 위치에 놓는 파일
   const mm = A => `multmatrix([[${A.slice(0, 4).map(v => fmt(v, 4)).join(',')}],[${A.slice(4, 8).map(v => fmt(v, 4)).join(',')}],[${A.slice(8, 12).map(v => fmt(v, 4)).join(',')}],[0,0,0,1]])`;

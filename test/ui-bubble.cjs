@@ -30,6 +30,13 @@ const fs = require('fs'), path = require('path'), NM = path.join(__dirname, '../
     const d1 = await p.evaluate(() => ({ R: design.R, src: P.bub && P.bub.ringD }));
     if (!(d1.R > d0.R) || d1.src !== 30) bad.push('링 30 역산 ' + JSON.stringify(d1));
     await p.click('#stBody button[data-go="4"]'); await p.waitForTimeout(600); await shot(4);
+    // 공학 계산: 표가 있고, 바퀴 회전수 예측이 미달이면 '계산한 회전수로 감속비 다시 정하기'로 통과
+    const c0 = await p.evaluate(() => ({ card: !!document.getElementById('stCalc'), wp: stCalc().rows.find(r => r.key === 'wheel_pred').ok, z2: design.z2 }));
+    if (!c0.card || c0.wp) bad.push('공학 계산 표 ' + JSON.stringify(c0));
+    await p.evaluate(() => document.getElementById('stCalc').scrollIntoView()); await shot('4c');
+    await p.click('button[data-act="calcRpm"]'); await p.waitForTimeout(1500);
+    const c1 = await p.evaluate(() => ({ wp: stCalc().rows.every(r => r.ok), z2: design.z2, src: design.motRpmSrc, g3: bubbleReadiness(P.design, model, P.ptest, P.tests, stCalc()).rows.filter(r => r.gate === 3).every(r => r.state === 'ok'), badC: model.checks.filter(c => c.st === 'bad').length }));
+    if (!c1.wp || c1.z2 <= c0.z2 || c1.src !== 'calc' || !c1.g3 || c1.badC) bad.push('감속비 다시 정하기 ' + JSON.stringify(c1));
     const ver = await p.evaluate(() => model.verify.filter(r => r.ok === false).map(r => r.key));
     if (ver.length) bad.push('검증 미달 ' + ver.join());
     await p.click('#stBody button[data-go="5"]'); await p.waitForTimeout(500); await shot(5);

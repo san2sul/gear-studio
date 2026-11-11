@@ -197,4 +197,16 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok((C.m2mSlotGet(R2, 'ringD') || {}).value === 35 && C.m2mSlotGet(R2, 'ringD').source === 'ai', '대화: 배운 표현으로 읽기');
   const L2 = C.m2mLearn([], '물통은 50 정도 들어가게', [{ slot: 'liquid', value: 50, phrase: '물통은 50', how: 'ai' }], []);
   ok(L2.added[0] && L2.added[0].value === null && L2.added[0].phrase === '물통은', '대화: 숫자 앞 낱말 배우기'); }
+{ // 17. 공학 계산 (관문 3): 결정적 식 + 가정값
+  const D = C.bubbleDesign({}), M = C.buildModel(D), E = C.bubbleEngCalc(D, M), r = k => E.rows.find(x => x.key === k);
+  ok(E.rows.length === 7 && E.rows.every(x => isFinite(x.value) && x.how && Array.isArray(x.assume)), '계산: 7항목 모두 수치·근거');
+  ok(Math.abs(C.trisVolume(C.extrudeTris([[0, 0], [10, 0], [10, 10], [0, 10]], [], 5)) - 500) < 1e-6, '계산: 부피 10×10×5 = 500');
+  ok(Math.abs(C.lewisY(12) - 0.245) < 1e-9 && C.lewisY(36) > 0.37 && C.lewisY(36) < 0.385, '계산: Lewis Y');
+  const m = C.dcMotor(C.MOTORS.n20_300, 3); ok(Math.abs(m.n0 - 150) < 1e-9 && Math.abs(m.Ts - 37.5) < 1e-9 && Math.abs(m.speedAt(18.75) - 75) < 1e-9, '계산: 모터 직선 모델');
+  ok(r('torque').ok && r('gear').ok && r('air').ok && r('battery').ok && r('trig_pull').ok && r('trig_ret').ok, '계산: 기본 설계는 강도·토크·바람·전지·방아쇠 통과');
+  ok(!r('wheel_pred').ok && r('wheel_pred').value > 45, `계산: 80% 가정으로 정한 잇수면 바퀴가 빨리 돈다 (${r('wheel_pred').value})`);
+  const D2 = C.bubbleDesign({ motRpm: r('wheel_pred').value * D.z2 / D.z1 }), M2 = C.buildModel(D2), E2 = C.bubbleEngCalc(D2, M2);
+  ok(E2.rows.find(x => x.key === 'wheel_pred').ok && D2.motRpmSrc === 'calc' && !M2.checks.some(c => c.st === 'bad'), `계산: 계산값으로 잇수를 다시 정하면 목표 회전수 (z${D2.z2}, ${E2.rows.find(x => x.key === 'wheel_pred').value})`);
+  ok(!C.bubbleEngCalc(D, M, { trigForceMax: 3 }).rows.find(x => x.key === 'trig_pull').ok, '계산: 당기는 힘 기준을 낮추면 미달');
+  const Rd = C.bubbleReadiness(D2, M2, null, [], E2); ok(Rd.rows.filter(x => x.gate === 3).every(x => x.state === 'ok'), '계산: 준비도 관문 3 통과'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

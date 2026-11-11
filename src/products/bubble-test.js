@@ -27,7 +27,7 @@ function bubbleTestBest(T) {
   return { ringD: best(T.A), wheelT: best(T.B), dist: T.dist ? +T.dist : null };
 }
 // ---- 작동 준비도: 관문별 항목 상태. ok 통과 · bad 미달 · test 실험 필요 · none 아직 앱에 없음 ----
-function bubbleReadiness(D, M, T, tests) {
+function bubbleReadiness(D, M, T, tests, calc = null) {
   const rows = [], add = (gate, item, state, how) => rows.push({ gate, item, state, how });
   const clr = M.checks.filter(c => c.st !== 'warn' && c.st !== 'info'), badC = clr.filter(c => c.st === 'bad').length, badV = (M.verify || []).filter(r => r.ok === false).length;
   add(1, '요청서 꼭 정할 칸', 'ok', '요청서 단계에서 확인');
@@ -38,7 +38,8 @@ function bubbleReadiness(D, M, T, tests) {
   add(2, `판 두께 ${D.wheelT} mm에서 막이 유지됨`, t ? (t === 'no' ? 'bad' : 'ok') : 'test', t ? { ok: '시험: 잘 나옴', few: '시험: 조금 나옴', no: '시험: 안 나옴' }[t] : '링 막대 B로 실험하세요');
   const dist = T && T.dist ? +T.dist : null;
   add(2, `팬 거리 ${BUB_FAN_DIST} mm에서 방울이 떨어져 나감`, dist == null ? 'test' : dist === BUB_FAN_DIST ? 'ok' : 'bad', dist == null ? '팬 시험대로 실험하세요' : dist === BUB_FAN_DIST ? '시험에서 가장 잘 된 거리와 같음' : `시험에서는 ${dist} mm가 가장 잘 됨 → 설계의 팬 거리는 아직 바꿀 수 없음(미구현)`);
-  for (const x of ['모터 토크 대 부하(안전율)', '팬 바람 세기', '기어 이 굽힘 강도', '방아쇠 스프링과 스위치 누르는 힘', '건전지 사용 시간']) add(3, x, 'none', '공학 계산 단계에서 만들 예정');
+  if (calc) for (const r of calc.rows) add(3, r.ko, r.ok ? 'ok' : 'bad', `${fmt(r.value, 2)} ${r.unit} (기준 ${r.need}) · 가정값 ${r.assume.length}개 사용`);
+  else for (const x of ['모터 토크 대 부하(안전율)', '팬 바람 세기', '기어 이 굽힘 강도', '방아쇠 스프링과 스위치 누르는 힘', '건전지 사용 시간']) add(3, x, 'none', '공학 계산을 넘기지 않음');
   for (const x of ['나사 보스·맞춤 핀', '프린터 보정(공차) 적용', '회로도·전선 통로', '물과 전기 분리', '방아쇠 안내 홈·복귀 스프링 자리']) add(4, x, 'none', '상세 설계 단계에서 만들 예정');
   for (const x of ['삼각형 단위 간섭', '조립 순서대로 들어가는지', '출력 가능성(오버행·두께)']) add(5, x, 'none', '검증 단계에서 만들 예정');
   const last = (tests || []).slice(-1)[0]; add(6, '시제품에서 방울이 나옴', last ? (last.result === 'ok' ? 'ok' : 'bad') : 'test', last ? `마지막 기록: ${{ ok: '잘 나옴', small: '작게 나옴', none: '안 나옴' }[last.result] || last.result}` : '시제품을 출력해 시험하세요');
