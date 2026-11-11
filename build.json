@@ -29,6 +29,7 @@
     "src/assembly/ports.js",
     "src/assembly/bench.js",
     "src/mechanisms/linkage-new.js",
+    "src/studio/core.js",
     "src/mechanisms/train.js",
     "src/ui/between.html",
     "src/ui/app.js",

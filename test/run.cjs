@@ -101,4 +101,26 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   const g0 = C.gearOutline({ m: 1, z: 20, pa: 20, x: 0, backlash: 0 }).pts, ar = P => Math.abs(P.reduce((s, p, i) => { const q = P[(i + 1) % P.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2);
   ok(Math.abs(span(b, outer) - (span(a, outer) - 0.2)) < 0.02, '보정: 바깥이 줄지 않음'); ok(Math.abs(span(b, inner) - (span(a, inner) + 0.3)) < 0.03, '보정: 구멍이 커지지 않음');
   ok(ar(g1) < ar(g0) - 0.5, '보정: 기어 백래시가 더해지지 않음'); ok(Math.abs(span(blk(), outer) - span(a, outer)) < 1e-9, '보정: 끈 뒤 원래대로가 아님'); }
+// 11. 동작 스튜디오: 문장 → 운동·값, 추천 1순위가 요구치를 만족(다시 잰 계산값), 모든 기구가 기본 요구로 만들어짐
+{ const cases = [
+    ['컨베이어 위 상자를 3초마다 옆으로 40mm 밀어내고 싶어', 'recip', { stroke_mm: 40, period_s: 3 }, ['slider', 'yoke', 'cam']],
+    ['와이퍼처럼 80도를 2초에 한 번 흔들고 싶어', 'swing', { angle_deg: 80, period_s: 2 }, ['fourbar']],
+    ['회전 작업대를 6칸으로 나눠 한 칸씩 돌다 멈추게', 'intermittent', { steps: 6 }, ['geneva', 'intgear']],
+    ['500g 물건을 150mm 들어 올리기', 'lift', { stroke_mm: 150 }, ['screw', 'winch']],
+    ['분당 20바퀴로 천천히 돌리는 믹서', 'rotate', { rpm: 20 }, ['spur']],
+    ['1초에 5mm씩 100mm 직선 이동', 'linear', { speed_mms: 5, stroke_mm: 100 }, ['rack', 'screw']],
+    ['200x150x120 mm 안에서 피스톤처럼 20mm 왕복, 1초에 2번', 'recip', { stroke_mm: 20, period_s: 0.5 }, ['slider', 'yoke', 'cam']],
+    ['4 cm 앞뒤로 왕복', 'recip', { stroke_mm: 40 }, ['slider', 'yoke', 'cam']],
+    ['90도씩 돌다가 멈추는 인덱서', 'intermittent', { steps: 4, angle_deg: 90 }, ['geneva', 'intgear']],
+    ['2kg 상자를 30 cm 끌어올리는 윈치', 'lift', { stroke_mm: 300 }, ['screw', 'winch']] ];
+  for (const [t, mo, want, top] of cases) { const S = C.m2mParse(t);
+    ok(S.motion.value === mo, `스튜디오 "${t}": 운동 ${S.motion.value}`);
+    for (const [k, v] of Object.entries(want)) ok(S.traits[k] && Math.abs(S.traits[k].value - v) < 1e-6, `스튜디오 "${t}": ${k} ${S.traits[k] && S.traits[k].value}`);
+    const R = C.m2mRecommend(S), c = R.list[0];
+    ok(c && top.includes(c.id) && c.pass, `스튜디오 "${t}": 1순위 ${c && c.id} ${c && c.pass}`);
+    if (c) c.rows.filter(r => r.want !== null).forEach(r => ok(r.ok, `스튜디오 "${t}": ${c.id} ${r.key} ${r.want} → ${r.got}`)); }
+  ok(C.m2mQuestions(C.m2mParse('뭔가 만들고 싶어'))[0].key === 'motion', '스튜디오: 운동을 모르면 먼저 물음');
+  ok(C.m2mQuestions(C.m2mParse('왕복 운동')).map(q => q.key).join() === 'stroke_mm,period_s', '스튜디오: 빠진 값 질문');
+  const S2 = C.m2mParse('피스톤처럼 왕복, 행정 500mm'); ok(!C.m2mRecommend(S2).list.some(c => c.id === 'slider'), '스튜디오: 범위 밖 기구가 후보에 남음');
+  for (const K of C.M2M_KB) { const S = C.m2mFilled({ ...C.m2mSpec(''), motion: { value: K.motions[0], source: 'user' } }); const c = C.m2mEval(K, S); ok(c.design && c.pass, `스튜디오 기구 ${K.id}: ${c.warn.join(' / ')} ${c.checks && c.checks.filter(x => x.st === 'bad').map(x => x.txt).join(' / ')}`); } }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);
