@@ -160,4 +160,10 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
     const big = M.parts.filter(q => !q.noExport).concat(M.housing).filter(q => { const t = q.print ? C.xfTris(q.tris, q.print) : q.tris, b = C.trisBounds(t), d = [0, 1, 2].map(a => b.hi[a] - b.lo[a]); return d[0] > 220 || d[1] > 220 || d[2] > 250; });
     ok(!big.length, `비누방울 ${tag}: 출력판보다 큰 부품 ${big.map(q => q.name)}`); }
   const D30 = C.bubbleDesign({ ringD: 30 }), D25 = C.bubbleDesign({}); ok(D30.R > D25.R, '비누방울: 링을 키우면 바퀴 반지름이 커져야 함'); }
+{ // 14. 요청서 추가 항목: 잴 수 있는 항목은 계산해 비교, 나머지는 미검증
+  const M = C.buildModel(C.bubbleDesign({})), ev = x => C.m2mExtraEval(x, M);
+  ok(ev({ key: 'len', op: '≤', value: 100 }).state === 'bad' && ev({ key: 'len', op: '≤', value: 300 }).state === 'ok', `추가 항목: 길이 비교 (${M.measures.len})`);
+  ok(ev({ key: 'liquid', op: '≥', value: 20 }).state === 'ok', `추가 항목: 비누액 ${M.measures.liquid}`);
+  ok(ev({ key: 'rate', op: '≥', value: 4 }).state === 'ok' && ev({ key: 'rate', op: '≥', value: 6 }).state === 'bad', '추가 항목: 방울 자리');
+  ok(ev({ key: 'weight', op: '≤', value: 300 }).state === 'unv' && ev({ key: null, label: '색', op: '=', value: '파랑' }).state === 'unv', '추가 항목: 계산 못 하는 것은 미검증'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

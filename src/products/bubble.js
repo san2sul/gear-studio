@@ -189,6 +189,9 @@ function bubbleModel(D) {
   C.push({ st: 'warn', txt: '비누막이 생기는지, 방울 크기와 개수는 계산하지 않습니다(미검증). 출력 뒤 실험해 기록하세요.' });
   C.push({ st: 'warn', txt: '몸통 반쪽을 잇는 나사 보스와 배선 통로는 아직 만들지 않았습니다(미구현). 접착하거나 구멍을 뚫어 M3 나사로 이으세요.' });
   model.size = { dim: sz };
+  // 요청서 추가 항목이 비교할 수 있는 잰 값 (모두 계산)
+  const hb = trisBounds([].concat(...model.housing.map(h => h.tris)));
+  model.measures = { rate: bubblesPerS, len: hb.hi[0] - hb.lo[0], wid: hb.hi[1] - hb.lo[1], hgt: hb.hi[2] - hb.lo[2], liquid: (T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, ringD: D.ringD, rings: D.rings };
   // ---- G6 부품표와 조립 순서 ----
   model.bom = [['링 바퀴(출력)', 1, `링 ${D.rings}개 × 지름 ${D.ringD} mm`], ['큰 기어 z' + D.z2 + '(출력)', 1, 'm' + D.m], ['피니언 z' + D.z1 + '(출력)', 1, 'D컷 3 mm'], ['팬(출력)', 1, '지름 ' + fmt(2 * G.fanR, 0) + ' mm'],
     ['비누액 통(출력)', 1, `약 ${fmt((T.x1 - T.x0 - 2 * W) * (2 * T.y - 2 * W) * (T.level - T.zBot - 2) / 1000, 0)} mL, PETG 권장`], ['방아쇠(출력)', 1, ''], ['머리 몸체·앞 덮개(출력)', 2, ''], ['몸통 반쪽(출력)', 2, ''],

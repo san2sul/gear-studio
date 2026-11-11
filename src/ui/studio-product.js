@@ -18,6 +18,20 @@ function stReqApply() {
     if (!ok) { P.chosen = null; P.design = null; toast('요청서가 바뀌어 B안이 조건에 맞지 않게 되었습니다. 개념안을 다시 고르세요'); }
     else { P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); } }
 }
+// 요청서 추가 항목 표: 고르는 항목(앱이 재거나 설계에 씀) + 직접 쓰는 항목(메모, 미검증)
+function stExtraCard(R) {
+  const X = R.extra || [], st = x => { const E = M2M_EXTRA[x.key]; return !E ? stB('unv') : E.noCalc ? stB('unv') : stB('calc'); };
+  const row = (x, i) => { const E = M2M_EXTRA[x.key];
+    return `<tr><td>${E ? escH(E.ko) : `<input data-rx="${i}:label" value="${escH(x.label || '')}" placeholder="항목 이름" style="width:84px">`}</td>
+      <td><span class="row" style="gap:4px;align-items:center;flex-wrap:nowrap"><select data-rx="${i}:op" style="width:46px">${['=', '≤', '≥'].map(o => `<option${o === x.op ? ' selected' : ''}>${o}</option>`).join('')}</select>
+        <input data-rx="${i}:value" ${E ? 'type="number" step="any"' : ''} value="${escH(x.value ?? '')}" style="width:64px">${E ? `<span class="u">${E.unit}</span>` : `<input data-rx="${i}:unit" value="${escH(x.unit || '')}" placeholder="단위" style="width:44px">`}</span></td>
+      <td>${st(x)}</td><td><button class="btn" data-act="rxDel" data-i="${i}" aria-label="지우기">✕</button></td></tr>`; };
+  const used = new Set(X.map(x => x.key).filter(Boolean));
+  return `<details${X.length ? ' open' : ''}><summary>추가 항목 ${X.length ? X.length + '개' : ''}</summary>
+    <p class="hint">요청서에 없는 요구를 더하세요. 직접 넣은 값이라 모두 “내가 줌”입니다. ${stB('calc')}는 앱이 설계에 쓰거나 재서 확인하는 항목, ${stB('unv')}는 기록만 하고 확인하지 않는 항목입니다.</p>
+    ${X.length ? `<div class="tblWrap"><table class="vt"><tbody>${X.map(row).join('')}</tbody></table></div>` : ''}
+    <div class="row"><select id="rxNew">${Object.entries(M2M_EXTRA).filter(([k]) => !used.has(k)).map(([k, E]) => `<option value="${k}">${escH(E.ko)} (${E.unit})</option>`).join('')}<option value="">직접 쓰기…</option></select><button class="btn" data-act="rxAdd">항목 추가</button></div></details>`;
+}
 // 설계 전 단계에서 막혔을 때 보여 줄 안내
 function stPNeed() {
   if (!stCanBuild()) return `<fieldset><legend>아직 이어지지 않아요</legend><p class="hint">요청서의 결과 효과에 맞는 기능 분해 템플릿이 아직 없어요 ${stB('none')}. 지금은 “비누방울”만 설계·시뮬레이션·제작까지 이어집니다.</p><div class="row"><button class="btn" data-go="1">요청서로 돌아가기</button></div></fieldset>`;
@@ -27,6 +41,10 @@ function stPNeed() {
 }
 const BUB_IN = [['ringD', '링 지름', 'mm', 10, 50], ['rings', '링 개수', '개', 3, 10], ['wheelRpm', '링 바퀴 회전수', 'rpm', 10, 90], ['volt', '건전지 전압', 'V', 1.5, 6]];
 function stBubDesign() { const p = {}; for (const [k] of BUB_IN) if (P.bub && P.bub[k] != null) p[k] = P.bub[k];
+  for (const x of (P.req && P.req.extra) || []) { const v = +x.value; if (!isFinite(v) || !M2M_EXTRA[x.key]) continue;   // 요청서 추가 항목 중 설계 입력
+    if (x.key === 'ringD' && v >= 10 && v <= 50) p.ringD = v; if (x.key === 'rings' && v >= 3 && v <= 10) p.rings = Math.round(v); }
+  const rate = ((P.req && P.req.extra) || []).find(x => x.key === 'rate' && +x.value > 0);
+  if (rate) { const need = +rate.value * 60 / (p.rings || BUB_DEF.rings); if (rate.op !== '≤' && need > (p.wheelRpm || BUB_DEF.wheelRpm)) p.wheelRpm = Math.min(90, +need.toFixed(1)); }
   const sp = P.req && P.req.shape.value === 'gun' && P.req.shape.params || {}; if (sp.length) p.gunLen = sp.length.value; if (sp.gripAngle) p.gripAngle = sp.gripAngle.value;   // 요청서의 총 길이·손잡이 각도
   return bubbleDesign(p); }
 function stUseBubble() { P.chosen = 'B'; P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design))); }
@@ -53,12 +71,12 @@ function stConcepts() {
 // 4. 설계 (B안)
 function stPDesign() {
   if (!P.design || P.design.kind !== 'bubble') return stPNeed();
-  const D = P.design, G = bubbleGeom(D), src = k => P.bub && P.bub[k] != null ? 'user' : 'default';
+  const D = P.design, G = bubbleGeom(D), fromReq = k => ((P.req.extra || []).some(x => x.key === k) || (k === 'wheelRpm' && (P.req.extra || []).some(x => x.key === 'rate'))), src = k => P.bub && P.bub[k] != null || fromReq(k) ? 'user' : 'default';
   const calc = [['링 중심 반지름', fmt(D.R, 1) + ' mm', '링 사이 살 4 mm, 허브와 3 mm 띄우는 최소값'], ['링 바퀴 지름', fmt(2 * G.wheelR, 0) + ' mm', ''], ['감속 기어', `z${D.z2} : z${D.z1} (m${D.m})`, `모터 ${fmt(D.motRpm, 0)} rpm ÷ 목표 ${D.wheelRpm} rpm에 가장 가까운 잇수`],
     ['바퀴 모터 회전수', fmt(D.motRpm, 0) + ' rpm ' + stB('assume'), `N20 300 rpm(6 V형)을 ${D.volt} V로: 전압 비례 × 부하 80% 어림`], ['팬 지름', fmt(2 * G.fanR, 0) + ' mm', '큰 기어 이끝과 2 mm 이상 띄움'], ['비누액 통', `액면 ${fmt(G.tray.level, 1)} mm (바퀴 축 기준)`, '맨 아래 링이 잠기도록']];
   const sp = P.req.shape.value === 'gun' ? P.req.shape.params : null;
   return `${sp ? `<fieldset><legend>요청서에서 온 값</legend><p class="hint">총 길이 ${D.gunLen} mm, 손잡이 각도 ${D.gripAngle}° ${srcB(sp.length.source)} · 바꾸려면 <button class="btn" data-go="1">요청서 고치기</button></p></fieldset>` : ''}<fieldset><legend>B안 · 요구치로 설계</legend><p class="hint">값을 바꾸면 치수를 다시 역산하고 3D와 껍데기가 바로 바뀝니다.</p>
-    <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"> <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
+    <table class="vt"><tbody>${BUB_IN.map(([k, ko, u, lo, hi]) => `<tr><td>${ko}</td><td><input type="number" step="any" data-bp="${k}" data-lo="${lo}" data-hi="${hi}" value="${D[k]}" style="width:80px"${fromReq(k) ? ' disabled title="요청서 추가 항목에서 정함"' : ''}>${fromReq(k) ? ' <span class="hint">요청서</span>' : ''} <span class="u">${u}</span></td><td>${srcB(src(k))}</td></tr>`).join('')}</tbody></table></fieldset>
   <fieldset><legend>계산된 치수 ${stB('calc')}</legend><div class="tblWrap"><table class="vt"><tbody>${calc.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td class="hint">${c}</td></tr>`).join('')}</tbody></table></div>
     <div class="row" style="margin-top:8px"><button class="btn primary" data-go="4">시뮬레이션·검증으로</button></div></fieldset>`;
 }
@@ -69,6 +87,8 @@ function stPSim() {
   return `<fieldset><legend>요구치 대비 결과</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과(계산)</th><th>상태</th><th>계산 방법</th></tr></thead><tbody>
     ${V.map(r => `<tr><td>${escH(r.ko)}</td><td>${r.want == null ? '—' : (r.key === 'wet_s' ? '< ' : r.key === 'dip' ? '> ' : r.key === 'air' ? '≥ ' : '') + fmt(r.want, 2) + ' ' + r.unit}</td><td>${fmt(r.got, 2)} ${r.unit}</td><td>${r.ok === true ? stB('ok') : r.ok === false ? stB('bad') : stB('calc')}</td><td class="hint">${escH(r.how)}</td></tr>`).join('')}</tbody></table></div>
     <p class="hint">“막이 5초 안에 마르지 않는다”와 바퀴 모터 회전수는 가정값입니다.</p></fieldset>
+  ${(P.req.extra || []).length ? `<fieldset><legend>요청서 추가 항목</legend><div class="tblWrap"><table class="vt"><thead><tr><th>항목</th><th>요구</th><th>결과</th><th>상태</th><th>방법</th></tr></thead><tbody>
+    ${P.req.extra.map(x => { const E = M2M_EXTRA[x.key], r = m2mExtraEval(x, model); return `<tr><td>${escH(E ? E.ko : x.label || '이름 없음')}</td><td>${escH(x.op)} ${escH(x.value ?? '')} ${escH(E ? E.unit : x.unit || '')}</td><td>${r.got == null ? '—' : fmt(r.got, 1) + ' ' + (E ? E.unit : '')}</td><td>${stB(r.state)}</td><td class="hint">${escH(r.how)}</td></tr>`; }).join('')}</tbody></table></div></fieldset>` : ''}
   <fieldset><legend>부품 사이 거리 ${stB('calc')}</legend>${chk.map(c => `<p class="hint">${c.st === 'ok' ? stB('ok') : stB('bad')} ${c.txt}</p>`).join('')}
     <p class="hint">도는 부품은 도는 범위(원) 전체로 계산했습니다.</p></fieldset>
   <fieldset><legend>무엇이 검증되었나</legend><table class="vt"><tbody>
@@ -94,7 +114,9 @@ function stPMake() {
 }
 $('stBody').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !P) return; const a = b.dataset.act;
-  if (a === 'rqProd' && P.req) { P.req.kind = 'product'; stSave(); stRender(); }
+  if (a === 'rxAdd' && P.req) { const k = $('rxNew').value, E = M2M_EXTRA[k]; P.req.extra = (P.req.extra || []).concat([E ? { key: k, op: E.op, value: '', source: 'user' } : { key: null, label: '', op: '=', value: '', unit: '', source: 'user' }]); stSave(); stRender(); }
+  else if (a === 'rxDel' && P.req) { P.req.extra.splice(+b.dataset.i, 1); stReqApply(); stSave(); stRender(); }
+  else if (a === 'rqProd' && P.req) { P.req.kind = 'product'; stSave(); stRender(); }
   else if (a === 'rqMotion' && P.req) { P.req.kind = 'motion'; stReqApply(); stStep = 1; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
   else if (a === 'ptest') { P.tests = (P.tests || []).concat([{ at: new Date().toISOString(), result: b.dataset.v, ringD: P.design.ringD, wheelRpm: P.design.wheelRpm }]); stSave(); stRender(); }
@@ -102,6 +124,9 @@ $('stBody').addEventListener('click', e => {
 }, true);
 $('stBody').addEventListener('change', e => {
   const el = e.target; if (!P || !P.req) return; const R = P.req;
+  if (el.dataset.rx) { const [i, f] = el.dataset.rx.split(':'), x = R.extra && R.extra[+i]; if (!x) return; const E = M2M_EXTRA[x.key];
+    if (f === 'value' && E) { const v = parseFloat(el.value); if (el.value.trim() !== '' && !(v >= E.range[0] && v <= E.range[1])) { toast(`${E.ko}은(는) ${E.range[0]}~${E.range[1]} ${E.unit} 사이여야 합니다`); el.value = x.value; return; } x.value = el.value.trim() === '' ? '' : v; }
+    else x[f] = el.value; stReqApply(); stLog('요청서 추가 항목'); stSave(); stRender(); return; }
   if (el.dataset.rq || el.dataset.rqp || el.dataset.rqfx) {
     if (el.dataset.rq === 'shape') R.shape = el.value ? m2mReqShape(el.value, 'user') : { value: null, source: 'missing' };
     else if (el.dataset.rq === 'input') R.inputs = el.value ? [m2mReqInput(el.value, 'user')] : [];

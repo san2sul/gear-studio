@@ -67,6 +67,7 @@ function stReqCard(R) {
         ${R.effects.some(e => e.kind === 'motion') ? `<p class="hint">움직임: ${escH(M2M_MOTIONS[P.spec.motion.value] ? M2M_MOTIONS[P.spec.motion.value].ko : '?')}</p>` : ''}</td><td>${R.effects.length ? '' : srcB('missing')}</td></tr>
       <tr><td>동력</td><td><select data-rq="power"><option value=""${!R.power.value ? ' selected' : ''}>정하지 않음</option><option value="hand"${R.power.value === 'hand' ? ' selected' : ''}>손힘만</option><option value="battery"${R.power.value === 'battery' ? ' selected' : ''}>건전지·모터 가능</option></select></td><td>${srcB(R.power.source)}</td></tr>
     </tbody></table></div>
+    ${stExtraCard(R)}
     ${q.length ? `<p class="hint">아직 비어 있는 칸: ${q.map(x => escH(x.ask)).join(' / ')}</p>` : ''}
     <div class="row">${m2mDecompose(R).ok ? `<button class="btn primary" data-go="2">기능 분해와 개념안 보기</button>` : ''}<button class="btn" data-act="rqMotion">움직임 하나로 다루기</button></div>
     ${m2mDecompose(R).ok ? '' : `<p class="hint">고른 효과는 아직 <b>기능 분해</b> 템플릿이 없어요 ${stB('none')}. 지금은 “비누방울”만 개념안·설계·시뮬레이션·제작까지 이어집니다. 아래에서 움직임 하나씩은 설계할 수 있어요.</p>`}</fieldset>`;

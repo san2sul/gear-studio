@@ -62,3 +62,21 @@ function m2mRequestQuestions(R) {
 const M2M_PNAME = { length: ['길이', 'mm'], height: ['높이', 'mm'], width: ['폭', 'mm'], diameter: ['지름', 'mm'], gripAngle: ['손잡이 각도', '°'], stroke_mm: ['행정', 'mm'], force_N: ['힘', 'N'], rpm: ['회전수', 'rpm'] };
 // 요청서 칸을 고칠 때 허용 범위 (모양·입력 치수)
 const M2M_PRANGE = { length: [60, 400], height: [40, 400], width: [20, 300], diameter: [20, 300], gripAngle: [95, 115], stroke_mm: [2, 80], force_N: [1, 60], rpm: [5, 200] };
+// ---- 요청서 추가 항목: 사용자가 직접 넣는 요구. 앱이 잴 수 있는 항목은 설계·검증에 이어지고, 나머지는 '미검증' 메모 ----
+const M2M_EXTRA = {
+  ringD: { ko: '링 지름', unit: 'mm', op: '=', how: '설계 입력으로 씀', range: [10, 50] },
+  rings: { ko: '링 개수', unit: '개', op: '=', how: '설계 입력으로 씀', range: [3, 10] },
+  rate: { ko: '초당 방울 자리', unit: '번/초', op: '≥', how: '바퀴 회전수를 이 값에 맞춰 올림', range: [0.5, 15] },
+  len: { ko: '전체 길이', unit: 'mm', op: '≤', how: '껍데기 길이를 재서 비교', range: [50, 600] },
+  wid: { ko: '전체 폭', unit: 'mm', op: '≤', how: '껍데기 폭을 재서 비교', range: [30, 400] },
+  hgt: { ko: '전체 높이', unit: 'mm', op: '≤', how: '껍데기 높이를 재서 비교', range: [50, 600] },
+  liquid: { ko: '비누액 양', unit: 'mL', op: '≥', how: '통의 액면 아래 부피를 재서 비교', range: [5, 1000] },
+  weight: { ko: '무게', unit: 'g', op: '≤', how: '무게는 아직 계산하지 않음', range: [10, 5000], noCalc: true },
+};
+function m2mExtraEval(x, M) {
+  const E = M2M_EXTRA[x.key];
+  if (!E || E.noCalc || !M || !M.measures || M.measures[x.key] == null || !isFinite(+x.value)) return { state: 'unv', got: null, how: E ? E.how : '앱이 잴 방법이 없는 항목' };
+  const got = M.measures[x.key], v = +x.value, tol = Math.max(1e-6, Math.abs(v) * 0.01);
+  const ok = x.op === '≤' ? got <= v + tol : x.op === '≥' ? got >= v - tol : Math.abs(got - v) <= tol;
+  return { state: ok ? 'ok' : 'bad', got, how: E.how };
+}

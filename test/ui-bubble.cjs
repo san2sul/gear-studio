@@ -29,6 +29,20 @@ const fs = require('fs'), path = require('path'), NM = path.join(__dirname, '../
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 20000 }).catch(() => null), p.click('button[data-act="zip"]')]);
     let zipN = 0; if (dl) { const f = OUT + `bub_${W}.zip`; await dl.saveAs(f); const buf = fs.readFileSync(f); zipN = (buf.toString('latin1').match(/PK\x01\x02/g) || []).length;
       const names = buf.toString('utf8').match(/(parts|housing)\/[A-Za-z0-9_]+\.stl/g) || []; if (!names.some(n => /H1_head_body/.test(n)) || !names.some(n => /P1_ring_wheel/.test(n))) bad.push('zip 내용'); } else bad.push('zip 저장 안 됨');
+    // 추가 항목: 링 지름 30(설계 입력), 전체 길이 ≤ 100(미달이어야), 직접 쓴 항목(미검증)
+    await p.click('#stSteps button[data-st="1"]'); await p.waitForTimeout(400);
+    await p.evaluate(() => { document.querySelector('#stBody details summary') && [...document.querySelectorAll('#stBody details')].forEach(d => d.open = true); });
+    await p.selectOption('#rxNew', 'ringD'); await p.click('button[data-act="rxAdd"]'); await p.waitForTimeout(300);
+    await p.fill('input[data-rx="0:value"]', '30'); await p.dispatchEvent('input[data-rx="0:value"]', 'change'); await p.waitForTimeout(1000);
+    await p.selectOption('#rxNew', 'len'); await p.click('button[data-act="rxAdd"]'); await p.waitForTimeout(300);
+    await p.fill('input[data-rx="1:value"]', '100'); await p.dispatchEvent('input[data-rx="1:value"]', 'change'); await p.waitForTimeout(800);
+    await p.selectOption('#rxNew', ''); await p.click('button[data-act="rxAdd"]'); await p.waitForTimeout(300);
+    await p.fill('input[data-rx="2:label"]', '색'); await p.dispatchEvent('input[data-rx="2:label"]', 'change'); await p.waitForTimeout(300);
+    await p.fill('input[data-rx="2:value"]', '파랑'); await p.dispatchEvent('input[data-rx="2:value"]', 'change'); await p.waitForTimeout(300); await shot(8);
+    const x1 = await p.evaluate(() => ({ ringD: design.ringD, ev: P.req.extra.map(x => m2mExtraEval(x, model).state).join() }));
+    if (x1.ringD !== 30 || x1.ev !== 'ok,bad,unv') bad.push('추가 항목 ' + JSON.stringify(x1));
+    await p.click('#stSteps button[data-st="4"]'); await p.waitForTimeout(500); await shot(9);
+    if (!(await p.evaluate(() => /요청서 추가 항목/.test(document.getElementById('stBody').innerText)))) bad.push('시뮬레이션에 추가 항목 없음');
     // 요청서 고치기: 총 길이 160 → 설계에 반영, 동력 '손힘만' → B안 선택 풀림
     await p.click('#stSteps button[data-st="1"]'); await p.waitForTimeout(400);
     await p.fill('input[data-rqp="shape:length"]', '160'); await p.dispatchEvent('input[data-rqp="shape:length"]', 'change'); await p.waitForTimeout(1200);
