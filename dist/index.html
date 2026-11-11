@@ -5677,7 +5677,7 @@ const M2M_NEED = {
 const M2M_TRAITS = { stroke_mm: ['행정·거리', 'mm'], angle_deg: ['각도', '°'], steps: ['칸 수', '칸'], period_s: ['주기', '초'], rpm: ['회전수', 'rpm'], speed_mms: ['속도', 'mm/s'], load_N: ['하중', 'N'], force_N: ['힘', 'N'], freq_hz: ['진동수', 'Hz'] };
 const M2M_SRC = { user: '내가 줌', ai: 'AI 추정', default: '기본값', calc: '계산', missing: '비어 있음' };
 function m2mSpec(text = '') {
-  return { schema: 'm2m.spec/1', text, motion: { value: null, source: 'missing' }, purpose: { value: 'other', source: 'default' }, traits: {}, limits: { box_mm: null, power: 'dc_motor', make: 'fdm' } };
+  return { schema: 'm2m.spec/1', text, motion: { value: null, source: 'missing' }, purpose: { value: 'other', source: 'default' }, traits: {}, limits: { box_mm: null, make: 'fdm' } };
 }
 const m2mVal = (S, k) => S.traits[k] && S.traits[k].value != null && isFinite(S.traits[k].value) ? +S.traits[k].value : null;
 // ---- 규칙 기반 해석: 낱말과 숫자·단위만 봄 (AI를 못 쓸 때도 동작) ----
@@ -5685,7 +5685,7 @@ const M2M_WORDS = [
   ['grip', /잡[았고기는다아]|집[었고기는어게]|그리퍼|집게|grip|grab|pick/i],
   ['vibrate', /진동|떨[리림게]|흔들흔들|vibrat|shak/i],
   ['intermittent', /간헐|멈췄다|멈추[고며]|칸씩|한 ?칸|정지했다|돌다가? ?멈|index|indexing|step/i],
-  ['swing', /요동|흔들|왔다 ?갔다|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
+  ['swing', /요동|흔들|왔다 ?갔다|열리|닫히|여닫|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
   ['recip', /왕복|피스톤|앞뒤로|위아래로|밀었다|밀고 ?당|두드리|찍[었고]|reciproc|back and forth|piston|stamp|tap/i],
   ['lift', /들어 ?올|올리|승강|끌어 ?올|감아 ?올|리프트|lift|hoist|raise/i],
   ['linear', /직선|이동|밀어|전진|슬라이드|옮기|보내|이송|linear|slide|move|push/i],
@@ -5846,11 +5846,72 @@ function m2mEval(K, S) {
   return C;
 }
 function m2mRecommend(S0) {
+  // 움직임을 모르면 추천하지 않음 (기본값으로 채워 엉뚱한 기구를 내놓지 않게)
+  if (!S0.motion || !S0.motion.value) return { spec: S0, list: [], rejected: [], blocked: 'motion' };
   const S = m2mFilled(S0);
   const all = M2M_KB.map(K => m2mEval(K, S));
   return { spec: S, list: all.filter(c => c.design).sort((a, b) => b.score - a.score), rejected: all.filter(c => !c.design && K_fits(c, S)) };
 }
 const K_fits = (c, S) => { const K = M2M_KB.find(k => k.id === c.id); return K && K.motions.includes(S.motion.value); };
+
+// ---- 제품 요청서 (G1): 모양 · 사람 입력 · 결과 효과 · 수치 · 제약 ----
+// "움직임 하나"가 아니라 제품 하나를 말하는 문장을 다섯 칸으로 나눔. 규칙만 씀(AI 없이도 같은 결과).
+const M2M_SHAPES = {
+  gun: ['총 모양', /총|권총|gun|pistol|blaster/i, { length: 200, height: 150, width: 50, gripAngle: 105 }],
+  box: ['상자 모양', /상자|박스|케이스|box|case/i, { length: 150, height: 100, width: 100 }],
+  tube: ['원통 모양', /원통|통 ?모양|병|캔|cylinder|tube|bottle/i, { length: 150, diameter: 60 }],
+  figure: ['인형·캐릭터', /인형|로봇|캐릭터|동물|새 ?모양|figure|doll|robot/i, { length: 120, height: 180, width: 80 }],
+  vehicle: ['탈것 모양', /자동차|차 ?모양|기차|배 ?모양|비행기|car|train|vehicle/i, { length: 200, height: 90, width: 100 }],
+};
+const M2M_INPUTS = {
+  trigger: ['방아쇠 당기기', /방아쇠|트리거|trigger/i, { stroke_mm: 20, force_N: 15 }],
+  button: ['버튼 누르기', /버튼|단추|누르면|눌러|button|press/i, { stroke_mm: 5, force_N: 5 }],
+  handle: ['손잡이 돌리기', /손잡이를? ?돌|핸들|크랭크를? ?돌|태엽|hand ?crank/i, { rpm: 60, force_N: 20 }],
+  lever: ['레버 당기기·밀기', /레버|lever/i, { stroke_mm: 40, force_N: 20 }],
+  pull: ['당기기', /당기면|당겨|잡아당|pull/i, { stroke_mm: 20, force_N: 15 }],
+  switch: ['스위치 켜기', /스위치|켜면|전원|switch/i, {}],
+  sensor: ['자동(센서)', /센서|감지|가까이 ?가면|자동으로|sensor|detect/i, {}],
+};
+const M2M_EFFECTS = {
+  bubble: ['비누방울 만들기', /비누 ?방울|버블|bubble/i],
+  wind: ['바람 내기', /바람|송풍|선풍|부채|wind|fan|blow/i],
+  spray: ['물·액체 뿜기', /물총|분사|뿜|뿌리|spray|squirt/i],
+  dispense: ['물건 내보내기', /배출|하나씩 ?나오|떨어뜨|자판기|dispens/i],
+  launch: ['던지기·쏘기', /발사|쏘[아는기면]|날리|던지|launch|shoot|throw/i],
+  light: ['빛 내기', /불빛|빛[이을]|LED|램프|light/i],
+  sound: ['소리 내기', /소리|딸깍|음악|종|sound|bell/i],
+};
+function m2mRequest(text) {
+  const t = String(text || ''), S = m2mParse(t), pick = (tbl) => { for (const [k, v] of Object.entries(tbl)) if (v[1].test(t)) return k; return null; };
+  const shape = pick(M2M_SHAPES), input = pick(M2M_INPUTS);
+  const effects = Object.entries(M2M_EFFECTS).filter(([, v]) => v[1].test(t)).map(([k]) => ({ id: k, kind: k, source: 'user' }));
+  if (S.motion.value) effects.push({ id: 'motion', kind: 'motion', motion: S.motion.value, source: S.motion.source });
+  // 비누방울·물총은 '나가다/나오다'가 효과를 뜻함 → 밀기 목적으로 잘못 읽은 것을 되돌림
+  if (effects.some(e => e.kind !== 'motion') && !S.motion.value && S.purpose.source === 'user') S.purpose = { value: 'other', source: 'default' };
+  const power = /손힘|손으로만|수동|건전지 ?없이|전기 ?없이|태엽/.test(t) ? 'hand' : /모터|건전지|배터리|충전|전기|usb/i.test(t) ? 'battery' : null;
+  const R = {
+    schema: 'm2m.request/1', text: t,
+    shape: shape ? { value: shape, source: 'user', params: Object.fromEntries(Object.entries(M2M_SHAPES[shape][2]).map(([k, v]) => [k, { value: v, source: 'default' }])) } : { value: null, source: 'missing' },
+    inputs: input ? [{ id: input, kind: input, source: 'user', params: Object.fromEntries(Object.entries(M2M_INPUTS[input][2]).map(([k, v]) => [k, { value: v, source: 'default' }])) }] : [],
+    effects,
+    power: power ? { value: power, source: 'user' } : { value: null, source: 'missing' },
+    spec: S,
+  };
+  // 제품인가, 움직임 하나인가: 모양·사람 입력·움직임 아닌 효과 중 하나라도 있거나 효과가 둘 이상이면 제품
+  R.kind = (shape || input || effects.some(e => e.kind !== 'motion') || effects.length > 1) ? 'product' : 'motion';
+  return R;
+}
+// 제품 요청서에서 아직 모르는 것 → 질문 (값을 멋대로 채우지 않음)
+function m2mRequestQuestions(R) {
+  if (R.kind !== 'product') return [];
+  const q = [];
+  if (!R.effects.length) q.push({ key: 'effects', ask: '결과로 무엇이 일어나야 하나요? (움직임, 바람, 비누방울, 빛, 소리 …)' });
+  if (!R.inputs.length) q.push({ key: 'inputs', ask: '사람은 어떻게 작동시키나요? (방아쇠, 버튼, 손잡이 돌리기, 스위치, 자동)' });
+  if (!R.power.value) q.push({ key: 'power', ask: '손힘만으로 움직여야 하나요, 건전지와 모터를 써도 되나요?', choices: [['hand', '손힘만'], ['battery', '건전지·모터 가능']] });
+  if (!R.shape.value) q.push({ key: 'shape', ask: '겉모양이 정해져 있나요? (총, 상자, 원통, 인형, 탈것, 상관없음)' });
+  return q;
+}
+const M2M_PNAME = { length: ['길이', 'mm'], height: ['높이', 'mm'], width: ['폭', 'mm'], diameter: ['지름', 'mm'], gripAngle: ['손잡이 각도', '°'], stroke_mm: ['행정', 'mm'], force_N: ['힘', 'N'], rpm: ['회전수', 'rpm'] };
 
 /* ================= 자유 조립: 축과 단(stage)으로 이루어진 3D 기어열 =================
  design = { kind:'train', rpm, pa, backlash, shaftD, gap, clear, input:{axis, origin},
@@ -7712,6 +7773,19 @@ function stHome() {
   <fieldset><legend>예제로 시작</legend><div class="alts">${ST_EX.map(([n, t], i) => `<button class="alt" data-act="ex" data-i="${i}"><span class="pill">예제</span><span>${escH(n)}<br><small>${escH(t)}</small></span><span></span></button>`).join('')}</div></fieldset>
   <p class="hint">프로젝트는 이 브라우저에 저장됩니다. 다른 기기로 옮기려면 제작 단계에서 프로젝트 파일(.m2m.json)을 받으세요.</p>`;
 }
+// 제품 요청서 카드 (G1): 다섯 칸과 출처, 모르는 것은 질문, 아직 없는 단계는 미구현으로
+function stReqCard(R) {
+  const q = m2mRequestQuestions(R), nm = (tbl, k) => k && tbl[k] ? tbl[k][0] : '—';
+  const pv = (o) => o ? Object.entries(o).map(([k, v]) => { const [n, u] = M2M_PNAME[k] || [k, '']; return `${n} ${v.value}${u === '°' ? u : ' ' + u}`; }).join(', ') : '';
+  const rows = [['모양', R.shape.value ? nm(M2M_SHAPES, R.shape.value) + ` <span class="u">${pv(R.shape.params)}</span>` : '—', R.shape.value ? 'user' : 'missing'],
+    ['사람 입력', R.inputs.length ? R.inputs.map(i => nm(M2M_INPUTS, i.kind) + (Object.keys(i.params || {}).length ? ` <span class="u">${pv(i.params)}</span>` : '')).join(', ') : '—', R.inputs.length ? 'user' : 'missing'],
+    ['결과 효과', R.effects.length ? R.effects.map(e => e.kind === 'motion' ? '움직임: ' + M2M_MOTIONS[e.motion].ko : M2M_EFFECTS[e.kind][0]).join(', ') : '—', R.effects.length ? 'user' : 'missing'],
+    ['동력', R.power.value === 'hand' ? '손힘만' : R.power.value === 'battery' ? '건전지·모터 가능' : '—', R.power.source]];
+  return `<fieldset><legend>제품 요청서</legend><p class="hint">이 문장은 움직임 하나가 아니라 <b>제품 하나</b>를 말하고 있어요. 괄호 안 치수는 흔히 쓰는 값으로 넣은 가정값이에요.</p>
+    <div class="tblWrap"><table class="vt"><thead><tr><th>칸</th><th>읽은 값</th><th>출처</th></tr></thead><tbody>${rows.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td>${srcB(c)}${/u">/.test(b) ? ' ' + stB('assume') : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${q.length ? `<div class="ask">${q.map(x => `<p><b>${escH(x.ask)}</b>${x.choices ? ' ' + x.choices.map(([v, l]) => `<button class="btn" data-act="pw" data-v="${v}">${l}</button>`).join(' ') : ''}</p>`).join('')}</div>` : ''}
+    <p class="hint">다음 단계인 <b>기능 분해</b>(예: 막 적시기 · 막 옮기기 · 바람 만들기)와 <b>개념안 비교</b>, <b>총 모양 껍데기</b>는 아직 만들고 있어요 ${stB('none')}. 지금은 아래에서 이 제품 안의 움직임을 하나씩 설계할 수 있어요.</p></fieldset>`;
+}
 // 2. 동작 정의
 function stDefine() {
   const S = P.spec, mo = S.motion.value, q = m2mQuestions(S), keys = mo ? stTraitKeys(S) : [];
@@ -7722,7 +7796,8 @@ function stDefine() {
     <div class="row"><button class="btn primary" data-act="parse">글 해석하기</button>${stAI ? `<button class="btn" data-act="ai"${stBusy ? ' disabled' : ''}>${stBusy ? 'AI가 읽는 중…' : 'AI로 해석하기'}</button>` : ''}</div>
     <p class="hint">${stAI ? '“글 해석하기”는 낱말과 숫자만 읽습니다. “AI로 해석하기”는 문장의 뜻까지 읽지만, 결과는 AI 추정으로 표시되니 확인하세요.' : '낱말과 숫자·단위를 읽어 명세서를 만듭니다. (이 화면에서는 AI 해석을 쓸 수 없습니다)'}</p>
   </fieldset>
-  <fieldset><legend>움직임의 종류</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
+  ${P.req ? stReqCard(P.req) : ''}
+  <fieldset><legend>${P.req ? '제품 안의 움직임 하나 고르기' : '움직임의 종류'}</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
     ${mo ? `<p class="hint">고른 것: <b>${M2M_MOTIONS[mo].ko}</b> ${srcB(S.motion.source)}</p>` : ''}</fieldset>
   ${q.length && mo ? `<fieldset class="ask"><legend>빠진 값 ${q.length}개</legend>${q.map(x => `<label class="f">${escH(x.ask)} <span class="u">${escH(x.unit || '')}</span><input type="number" step="any" data-tr="${x.key}" placeholder="비우면 ${M2M_DEF[x.key]} (가정값)"></label>`).join('')}</fieldset>` : ''}
   ${mo ? `<fieldset><legend>요구사항 명세서</legend>
@@ -7839,7 +7914,8 @@ $('stBody').addEventListener('click', e => {
   else if (a === 'dup') { const Q = stLS.get('m2m.p.' + id, null); if (Q) { const N = { ...JSON.parse(JSON.stringify(Q)), id: stNew().id, name: Q.name + ' 사본' }; P = N; stSave(); P = null; stRender(); } }
   else if (a === 'del') { if (!confirm('이 프로젝트를 지울까요?')) return; stLS.del('m2m.p.' + id); stLS.set(ST_KEY, stLS.get(ST_KEY, []).filter(x => x.id !== id)); if (P && P.id === id) P = null; stRender(); }
   else if (a === 'openFile') $('stFile').click();
-  else if (a === 'parse') { const t = $('stText').value; const S = m2mParse(t); if (!S.motion.value && P.spec.motion.value) S.motion = P.spec.motion; P.spec = S; stLog('글 해석'); stRec = null; stSave(); stRender(); if (!S.motion.value) toast('움직임 종류를 알아내지 못했습니다. 아래 카드에서 고르세요'); }
+  else if (a === 'parse') { const t = $('stText').value; const R = m2mRequest(t), S = R.spec; if (!S.motion.value && P.spec.motion.value) S.motion = P.spec.motion; P.spec = S; P.req = R.kind === 'product' ? (delete R.spec, R) : null; stLog('글 해석'); stRec = null; stSave(); stRender(); if (P.req) toast('제품 요청으로 읽었습니다. 요청서를 확인하세요'); else if (!S.motion.value) toast('움직임 종류를 알아내지 못했습니다. 아래 카드에서 고르세요'); }
+  else if (a === 'pw' && P.req) { P.req.power = { value: b.dataset.v, source: 'user' }; stSave(); stRender(); }
   else if (a === 'ai') stAIParse();
   else if (a === 'toRec') { stGo(2); }
   else if (a === 'peek') { const c = stRecRun().list.find(x => x.id === id); if (c) setDesign(JSON.parse(JSON.stringify(c.design))); }

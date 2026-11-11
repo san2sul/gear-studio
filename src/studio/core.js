@@ -27,7 +27,7 @@ const M2M_NEED = {
 const M2M_TRAITS = { stroke_mm: ['행정·거리', 'mm'], angle_deg: ['각도', '°'], steps: ['칸 수', '칸'], period_s: ['주기', '초'], rpm: ['회전수', 'rpm'], speed_mms: ['속도', 'mm/s'], load_N: ['하중', 'N'], force_N: ['힘', 'N'], freq_hz: ['진동수', 'Hz'] };
 const M2M_SRC = { user: '내가 줌', ai: 'AI 추정', default: '기본값', calc: '계산', missing: '비어 있음' };
 function m2mSpec(text = '') {
-  return { schema: 'm2m.spec/1', text, motion: { value: null, source: 'missing' }, purpose: { value: 'other', source: 'default' }, traits: {}, limits: { box_mm: null, power: 'dc_motor', make: 'fdm' } };
+  return { schema: 'm2m.spec/1', text, motion: { value: null, source: 'missing' }, purpose: { value: 'other', source: 'default' }, traits: {}, limits: { box_mm: null, make: 'fdm' } };
 }
 const m2mVal = (S, k) => S.traits[k] && S.traits[k].value != null && isFinite(S.traits[k].value) ? +S.traits[k].value : null;
 // ---- 규칙 기반 해석: 낱말과 숫자·단위만 봄 (AI를 못 쓸 때도 동작) ----
@@ -35,7 +35,7 @@ const M2M_WORDS = [
   ['grip', /잡[았고기는다아]|집[었고기는어게]|그리퍼|집게|grip|grab|pick/i],
   ['vibrate', /진동|떨[리림게]|흔들흔들|vibrat|shak/i],
   ['intermittent', /간헐|멈췄다|멈추[고며]|칸씩|한 ?칸|정지했다|돌다가? ?멈|index|indexing|step/i],
-  ['swing', /요동|흔들|왔다 ?갔다|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
+  ['swing', /요동|흔들|왔다 ?갔다|열리|닫히|여닫|와이퍼|까딱|좌우로 ?움직|오가|swing|oscillat|wiper|rock/i],
   ['recip', /왕복|피스톤|앞뒤로|위아래로|밀었다|밀고 ?당|두드리|찍[었고]|reciproc|back and forth|piston|stamp|tap/i],
   ['lift', /들어 ?올|올리|승강|끌어 ?올|감아 ?올|리프트|lift|hoist|raise/i],
   ['linear', /직선|이동|밀어|전진|슬라이드|옮기|보내|이송|linear|slide|move|push/i],
@@ -196,6 +196,8 @@ function m2mEval(K, S) {
   return C;
 }
 function m2mRecommend(S0) {
+  // 움직임을 모르면 추천하지 않음 (기본값으로 채워 엉뚱한 기구를 내놓지 않게)
+  if (!S0.motion || !S0.motion.value) return { spec: S0, list: [], rejected: [], blocked: 'motion' };
   const S = m2mFilled(S0);
   const all = M2M_KB.map(K => m2mEval(K, S));
   return { spec: S, list: all.filter(c => c.design).sort((a, b) => b.score - a.score), rejected: all.filter(c => !c.design && K_fits(c, S)) };

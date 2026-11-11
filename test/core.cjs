@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path'), Module = require('module');
 const html = fs.readFileSync(path.join(__dirname, '../dist/index.html'), 'utf8');
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const names = ['buildModel', 'polyOverlap', 'intGeo', 'intPhi', 'gearOutline', 'pointInPoly', 'modelPorts', 'asmDefault', 'asmModel', 'linkageDefault', 'linkMotion', 'linkClash', 'STD', 'proxyParts', 'MOTORS', 'LK_TYPES', 'camDefault', 'pairDesign', 'rackPair', 'bevelPair', 'planetaryPair', 'trisBounds', 'xfTris', 'fitCoupon', 'fitSet', 'extrudeTris', 'm2mParse', 'm2mQuestions', 'm2mFilled', 'm2mRecommend', 'm2mEval', 'M2M_KB', 'm2mSpec'];
+const names = ['buildModel', 'polyOverlap', 'intGeo', 'intPhi', 'gearOutline', 'pointInPoly', 'modelPorts', 'asmDefault', 'asmModel', 'linkageDefault', 'linkMotion', 'linkClash', 'STD', 'proxyParts', 'MOTORS', 'LK_TYPES', 'camDefault', 'pairDesign', 'rackPair', 'bevelPair', 'planetaryPair', 'trisBounds', 'xfTris', 'fitCoupon', 'fitSet', 'extrudeTris', 'm2mParse', 'm2mQuestions', 'm2mFilled', 'm2mRecommend', 'm2mEval', 'M2M_KB', 'm2mSpec', 'm2mRequest', 'm2mRequestQuestions'];
 const src = 'const THREE = require("three");\n' + core + '\nmodule.exports = {' + names.map(n => `${n}: typeof ${n} !== "undefined" ? ${n} : undefined`).join(',') + '};';
 const fn = path.join(__dirname, 'core-virtual.cjs'), m = new Module(fn, module); m.filename = fn; m.paths = module.paths; m._compile(src, fn);
 module.exports = m.exports;

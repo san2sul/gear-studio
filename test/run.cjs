@@ -123,4 +123,22 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(C.m2mQuestions(C.m2mParse('왕복 운동')).map(q => q.key).join() === 'stroke_mm,period_s', '스튜디오: 빠진 값 질문');
   const S2 = C.m2mParse('피스톤처럼 왕복, 행정 500mm'); ok(!C.m2mRecommend(S2).list.some(c => c.id === 'slider'), '스튜디오: 범위 밖 기구가 후보에 남음');
   for (const K of C.M2M_KB) { const S = C.m2mFilled({ ...C.m2mSpec(''), motion: { value: K.motions[0], source: 'user' } }); const c = C.m2mEval(K, S); ok(c.design && c.pass, `스튜디오 기구 ${K.id}: ${c.warn.join(' / ')} ${c.checks && c.checks.filter(x => x.st === 'bad').map(x => x.txt).join(' / ')}`); } }
+{ // 12. 제품 요청서 (G1): 모양·사람 입력·효과·동력을 다섯 칸으로, 움직임을 모르면 추천 안 함
+  const P = [
+    ['총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함', 'product', 'gun', 'trigger', ['bubble'], null],
+    ['버튼을 누르면 상자 뚜껑이 90도 열리는 장난감, 건전지 사용', 'product', 'box', 'button', ['motion'], 'battery'],
+    ['손잡이를 돌리면 인형 날개가 흔들리게, 손힘으로만', 'product', 'figure', 'handle', ['motion'], 'hand'],
+    ['스위치를 켜면 바람이 나오는 원통 선풍기', 'product', 'tube', 'switch', ['wind'], null],
+    ['와이퍼처럼 80도를 2초에 한 번 흔들고 싶어', 'motion', null, null, ['motion'], null] ];
+  for (const [t, kind, shape, input, fx, power] of P) { const R = C.m2mRequest(t);
+    ok(R.kind === kind, `요청서 "${t}": 종류 ${R.kind}`);
+    ok(R.shape.value === shape, `요청서 "${t}": 모양 ${R.shape.value}`);
+    ok((R.inputs[0] ? R.inputs[0].kind : null) === input, `요청서 "${t}": 입력 ${R.inputs[0] && R.inputs[0].kind}`);
+    ok(R.effects.map(e => e.kind).join() === fx.join(), `요청서 "${t}": 효과 ${R.effects.map(e => e.kind)}`);
+    ok(R.power.value === power, `요청서 "${t}": 동력 ${R.power.value}`); }
+  const B = C.m2mRequest(P[0][0]);
+  ok(B.spec.purpose.value !== 'push', '요청서: 비누방울 "나가야"를 밀기로 읽음');
+  ok(C.m2mRequestQuestions(B).some(q => q.key === 'power'), '요청서: 동력을 모르면 물어야 함');
+  const RB = C.m2mRecommend(B.spec); ok(RB.blocked === 'motion' && RB.list.length === 0, '요청서: 움직임을 모르는데 추천함');
+  ok(C.m2mRequestQuestions(C.m2mRequest(P[4][0])).length === 0, '요청서: 움직임 하나 문장에 제품 질문을 함'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);
