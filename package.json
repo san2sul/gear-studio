@@ -1,13 +1,13 @@
 {
   "name": "gear-studio",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "private": true,
   "description": "기어 설계실: 기어·기구·규격 부품을 설계하고 3D로 움직여 보고 3D 프린팅용 STL로 내보내는 웹앱",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "test": "node build.mjs && node test/run.cjs",
-    "test:ui": "node build.mjs && node test/ui-studio.cjs && node test/ui-bubble.cjs && node test/ui-chat.cjs"
+    "test:ui": "node build.mjs && node test/ui-studio.cjs && node test/ui-bubble.cjs && node test/ui-chat.cjs && node test/ui-media.cjs"
   },
   "devDependencies": {
     "three": "0.128.0"

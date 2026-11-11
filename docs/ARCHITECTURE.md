@@ -110,3 +110,10 @@ assembly = {
 5. 조립 작업대 2단계: 갈래, 토크 거슬러 계산 ← **완료 (v18 토크, v21 갈래: mods[k].src 로 앞 번호 어느 기구에든 이음, 같은 출력의 기어·벨트는 18 mm씩 층을 올림, 축 직결·랙은 한 출력에 하나)**. 닫힌 고리 ← **완료 (v22, `asmTies`: mods[k].tie = { src, from, zA, zB } 로 k 번 입력축을 다른 기구 출력에 GT2 벨트로 한 번 더 이음. 입력 한 주기 96점에서 두 길의 각도를 비교해 0.02 rad 넘게 어긋나면 잠김으로 보고, 최소제곱 비로 맞는 풀리 짝을 찾아 줌)**
 6. 크기별 규칙, 큰 부품 나누기 ← **완료 (v21, `sizeRules` in linkage-more.js: 등급 초소형<30·탁상<220·큰<600·아주 큰, BED 220×220보다 큰 부품, 모듈<0.5·축<3 경고 / `asmPlateTiles`: 큰 바탕판을 조각 + 이음띠 + M3로)**
 7. 실제 출력 피드백(프린터 보정 탭, 시험편 → 테두리·구멍·백래시 보정) ← **완료 (v23)**
+
+## v33 그림·사진·스케치로 요청서 만들기 + AI 보강 제안
+- `src/ui/studio-media.js`: 스케치 판(#skCv 800×480, 펜·직선·움직임 화살표(파랑)·기준선(빨강, 하나만, 실제 mm 입력)·지우개·되돌리기), 사진·그림 올리기(긴 변 1024 px로 줄여 `P.media[{id,kind:'sketch'|'upload',src,note,refMm}]`, 최대 4개).
+- AI 그림 해석(`stMediaAI`): sample `images:true` + `limits().images`일 때만. 그림 Blob과 기준선 길이를 넘기고 JSON {summary, fills, parts, reply}를 받음. 칸 값은 `m2mSlotCheck` 범위 검사 후 `m2mApplyFound(...,'ai')`. 요청서가 없으면 summary로 새로 만들고 출처를 모두 AI로 바꿈. 이어서 대화가 빈 칸을 물음.
+- AI 보강 제안(`stSuggest`): 빠진 것·맞지 않는 값·출력/조립/안전 문제를 `P.sugg[{kind:'value'|'part'|'note',...,state}]`로 받음. `stSuggClean`이 모르는 칸·범위 밖·중복을 버림. 사람이 '받아들이기'를 눌러야 반영. note는 `R.notes`(설계 계산에 안 쓰임, 미검증 표시).
+- AI가 없으면 그림은 첨부 자료로만 남음. `stRender` 끝에서 `skDraw()`로 캔버스를 다시 그림.
+- 시험: `test/ui-media.cjs`(스케치 선 그리기·기준선 필수·올리기·AI 흉내 해석·제안 정리·받아들이기/아니요·B안 설계 반영).

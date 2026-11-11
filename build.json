@@ -51,6 +51,7 @@
     "src/ui/studio.js",
     "src/ui/studio-product.js",
     "src/ui/studio-chat.js",
+    "src/ui/studio-media.js",
     "src/ui/shape-editor.js"
   ]
 }

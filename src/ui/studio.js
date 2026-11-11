@@ -28,6 +28,7 @@ function stRender() {
   const H = (stIsProd() ? [stHome, stDefine, stConcepts, stPDesign, stPSim, stPMake] : [stHome, stDefine, stRecommend, stDesign, stSim, stMake])[stStep];
   try { $('stBody').innerHTML = H(); } catch (e) { $('stBody').innerHTML = `<p class="hint">이 단계를 그리지 못했습니다: ${escH(e && e.message || e)}</p>`; }
   $('stNext').textContent = stNextHint();
+  if (typeof skDraw === 'function') skDraw();
 }
 function stNextHint() {
   if (stStep === 0) return '다음: 새 프로젝트를 만들거나 예제를 고르세요.';
@@ -84,6 +85,8 @@ function stDefine() {
     <p class="hint">${stAI ? '“글 해석하기”는 낱말과 숫자만 읽습니다. “AI로 해석하기”는 문장의 뜻까지 읽지만, 결과는 AI 추정으로 표시되니 확인하세요.' : '낱말과 숫자·단위를 읽어 명세서를 만듭니다. (이 화면에서는 AI 해석을 쓸 수 없습니다)'}</p>
   </fieldset>
   ${stChatCard()}
+  ${stMediaCard()}
+  ${stSuggCard()}
   ${P.req ? stReqCard(P.req) : ''}
   ${stIsProd() ? '<details><summary>움직임 하나만 따로 설계하기</summary>' : ''}<fieldset><legend>${stIsProd() ? '제품 안의 움직임 하나 고르기' : '움직임의 종류'}</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
     ${mo ? `<p class="hint">고른 것: <b>${M2M_MOTIONS[mo].ko}</b> ${srcB(S.motion.source)}</p>` : ''}</fieldset>
