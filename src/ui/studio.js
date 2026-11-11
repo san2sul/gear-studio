@@ -19,7 +19,7 @@ const stB = s => stBadge(...ST_STATE[s]);
 const srcB = src => src === 'user' ? stB('user') : src === 'ai' ? stB('ai') : src === 'calc' ? stB('calc') : src === 'default' ? stB('assume') : stBadge('mute', '비어 있음');
 function stCan(i) { if (i <= 1) return true; if (!P) return false; if (stIsProd()) return true; if (i === 2) return !!P.spec.motion.value; return !!P.design; }
 function stGo(i) { if (!stCan(i)) return; stStep = i; stSave(); stRender();
-  if (i === 2 && !P.chosen && stIsProd() && stCanBuild()) setDesign(stBubDesign());   // 개념안: 3D·치수까지 만든 B안을 미리 보여 줌
+  if (i === 2 && P.chosen !== 'B' && stIsProd() && stCanBuild()) setDesign(stBubDesign());   // 개념안: 3D·치수까지 만든 B안을 미리 보여 줌
   if (i === 2 && !P.chosen && !stIsProd()) { const c = stRecRun().list[0]; if (c) setDesign(JSON.parse(JSON.stringify(c.design))); } }   // 추천에 들어가면 1순위를 3D로 먼저 보여 줌
 function stTraitKeys(S) { const need = (M2M_NEED[S.motion.value] || []).map(x => x[0]); return [...new Set(need.concat(Object.keys(S.traits)))]; }
 function stRender() {

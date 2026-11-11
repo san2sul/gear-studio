@@ -16,7 +16,14 @@ const fs = require('fs'), path = require('path'), NM = path.join(__dirname, '../
     await p.selectOption('select[data-rq="power"]', 'battery'); await p.waitForTimeout(300); await p.click('#stBody button[data-go="2"]'); await p.waitForTimeout(500); await shot(2);
     const con = await p.evaluate(() => [...document.querySelectorAll('#stBody table.vt')[1].querySelectorAll('tbody tr')].map(r => r.cells[0].innerText));
     if (!con[0] || !/B안/.test(con[0])) bad.push('개념안 1순위 ' + con[0]);
-    await p.click('button[data-act="cpick"][data-id="B"]'); await p.waitForTimeout(1500); await shot(3);
+    // 모든 개념안을 고를 수 있어야 함: A안을 고르면 설계 단계에 '고른 안 … 미구현' 안내
+    const nPick = await p.evaluate(() => document.querySelectorAll('#stBody .stCard button[data-act="cpick"]').length); if (nPick < 5) bad.push('고르기 버튼 수 ' + nPick);
+    await p.click('.stCard button[data-act="cpick"][data-id="A"]'); await p.waitForTimeout(500);
+    const ca = await p.evaluate(() => ({ ch: P.chosen, on: !!document.querySelector('.stCard.on button[data-id="A"]') })); if (ca.ch !== 'A' || !ca.on) bad.push('A안 고르기 ' + JSON.stringify(ca));
+    await p.click('#stSteps button[data-st="3"]'); await p.waitForTimeout(500); await shot('3a');
+    if (!(await p.evaluate(() => /고른 안: A안/.test(document.getElementById('stBody').innerText)))) bad.push('A안 설계 안내 없음');
+    await p.click('#stSteps button[data-st="2"]'); await p.waitForTimeout(500);
+    await p.click('.stCard button[data-act="cpick"][data-id="B"]'); await p.waitForTimeout(1500); await shot(3);
     const d0 = await p.evaluate(() => ({ kind: model.kind, R: design.R, z2: design.z2, parts: model.parts.length, hs: model.housing.length }));
     if (d0.kind !== 'bubble' || d0.hs !== 4) bad.push('설계 ' + JSON.stringify(d0));
     await p.fill('input[data-bp="ringD"]', '30'); await p.dispatchEvent('input[data-bp="ringD"]', 'change'); await p.waitForTimeout(1200);

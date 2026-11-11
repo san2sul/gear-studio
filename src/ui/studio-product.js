@@ -4,16 +4,20 @@ const ST_PSTEPS = ['프로젝트', '제품 정의', '개념안', '설계', '시�
 function stPHint() {
   const q = m2mRequestQuestions(P.req);
   return [q.length ? `다음: 요청서의 빈 칸 ${q.length}개에 답하거나 바로 “기능 분해와 개념안 보기”를 누르세요.` : '다음: “기능 분해와 개념안 보기”를 누르세요.',
-    P.chosen ? '다음: 고른 안의 치수를 다듬거나 시뮬레이션으로 가세요. (오른쪽 3D는 B안 미리 보기)' : '다음: 개념안을 비교하고 “이 안으로 설계”를 누르세요. 오른쪽 3D는 B안 미리 보기입니다.',
-    '다음: 값을 바꾸면 치수·3D·껍데기가 다시 계산됩니다. 끝나면 시뮬레이션에서 확인하세요.', '다음: 미달이 없으면 제작 단계에서 파일을 받으세요.', '파일을 받고, 출력해 실험한 결과를 기록하세요.'][Math.max(0, stStep - 1)];
+    P.chosen ? (P.chosen === 'B' ? '다음: 고른 B안의 치수를 다듬거나 시뮬레이션으로 가세요.' : '고른 안은 아직 3D가 없어요(미구현). 오른쪽 3D는 B안 미리 보기입니다.') : '다음: 개념안을 비교하고 “이 안으로 설계”를 누르세요. 오른쪽 3D는 B안 미리 보기입니다.',
+    P.chosen && P.chosen !== 'B' ? '고른 안은 아직 3D 설계가 없어요(미구현). 오른쪽 3D는 B안 미리 보기입니다.' : '다음: 값을 바꾸면 치수·3D·껍데기가 다시 계산됩니다. 끝나면 시뮬레이션에서 확인하세요.', '다음: 미달이 없으면 제작 단계에서 파일을 받으세요.', '파일을 받고, 출력해 실험한 결과를 기록하세요.'][Math.max(0, stStep - 1)];
 }
 const ST_FLOW = { hand: '사람 손', trigger: '방아쇠 움직임', power: '전기', liquid: '비누액', film: '비누막', 'film@muzzle': '총구의 비누막', drive: '동력', 'air@muzzle': '총구의 바람' };
 function stIsProd() { return !!(P && P.req && P.req.kind === 'product'); }
 const stCanBuild = () => !!(P && P.req && m2mDecompose(P.req).ok);
+// 개념안 이름표: 이름 있는 안은 A·B·C, 이름 없는 조합은 고른 해법으로 구별
+const stCKey = c => c.id || 'X:' + c.sols.map(x => x[1]).join('/');
+const stChosenC = () => P && P.chosen && P.req ? m2mConcepts(P.req).list.find(c => stCKey(c) === P.chosen) || null : null;
 // 요청서가 바뀜 → 고른 개념안이 여전히 살아 있으면 설계를 다시 계산, 탈락했으면 선택을 풂
 function stReqApply() {
   if (!P || !P.req) return;
   if (!stIsProd() || !stCanBuild()) { if (P.design && P.design.kind === 'bubble') { P.chosen = null; P.design = null; } return; }
+  if (P.chosen && P.chosen !== 'B' && !stChosenC()) { P.chosen = null; toast('요청서가 바뀌어 고른 개념안이 조건에 맞지 않게 되었습니다. 개념안을 다시 고르세요'); }
   if (P.chosen === 'B') { const ok = m2mConcepts(P.req).list.some(c => c.id === 'B');
     if (!ok) { P.chosen = null; P.design = null; toast('요청서가 바뀌어 B안이 조건에 맞지 않게 되었습니다. 개념안을 다시 고르세요'); }
     else { P.design = stBubDesign(); setDesign(JSON.parse(JSON.stringify(P.design)), false); } }
@@ -60,7 +64,12 @@ function stPartsCard(R) {
 // 설계 전 단계에서 막혔을 때 보여 줄 안내
 function stPNeed() {
   if (!stCanBuild()) return `<fieldset><legend>아직 이어지지 않아요</legend><p class="hint">요청서의 결과 효과에 맞는 기능 분해 템플릿이 아직 없어요 ${stB('none')}. 지금은 “비누방울”만 설계·시뮬레이션·제작까지 이어집니다.</p><div class="row"><button class="btn" data-go="1">요청서로 돌아가기</button></div></fieldset>`;
-  const K = m2mConcepts(P.req), b = K.list.find(c => c.built);
+  const K = m2mConcepts(P.req), b = K.list.find(c => c.built), ch = stChosenC();
+  if (ch && !ch.built) return `<fieldset><legend>고른 안: ${ch.id ? ch.id + '안 · ' : ''}${escH(ch.ko)} ${stB('none')}</legend>
+    <p class="hint">이 안은 개념 비교까지만 되어 있어요. 치수 역산, 3D, 껍데기, 시뮬레이션, STL은 아직 만들지 않았습니다(미구현). 아래는 이 안의 구성입니다.</p>
+    <ul class="why">${ch.sols.map(([f, x]) => `<li>${escH(f)}: <b>${escH(x)}</b></li>`).join('')}</ul>
+    <p class="hint">부품 ${ch.parts}개 · 구입 부품: ${ch.buy.map(escH).join(', ') || '없음'}</p>
+    <div class="row">${b ? `<button class="btn primary" data-act="cpick" data-id="${b.id}">${b.id}안으로 바꿔 설계</button>` : ''}<button class="btn" data-go="2">개념안 다시 고르기</button><button class="btn" data-go="1">요청서 고치기</button></div></fieldset>`;
   return `<fieldset><legend>먼저 개념안을 고르세요</legend><p class="hint">설계·시뮬레이션·제작은 고른 개념안으로 만듭니다.${b ? ` 지금 조건에서 끝까지 만들 수 있는 안은 <b>${b.id}안 ${escH(b.ko)}</b>입니다.` : ' 지금 조건(손힘만)에 맞는 안은 아직 비교까지만 됩니다(3D·치수 미구현).'}</p>
     <div class="row">${b ? `<button class="btn primary" data-act="cpick" data-id="${b.id}">${b.id}안으로 설계 시작</button>` : ''}<button class="btn" data-go="2">개념안 보기</button><button class="btn" data-go="1">요청서 고치기</button></div></fieldset>`;
 }
@@ -86,17 +95,18 @@ function stConcepts() {
   if (!stCanBuild()) return stPNeed();
   const K = m2mConcepts(P.req), Dc = K.decomp, pw = P.req.power.value;
   const flow = Dc.funcs.map(f => `<tr><td>${escH(f.ko)}</td><td class="hint">${f.in ? escH(ST_FLOW[f.in] || f.in) : '—'} → ${f.out ? escH(ST_FLOW[f.out] || f.out) : '—'}</td><td>${f.cond === 'motor' ? '모터를 쓰면' : f.cond === 'hand' ? '손힘 기구가 있으면' : '항상'}</td></tr>`).join('');
-  const card = (c, i) => `<div class="stCard${c.id && c.id === P.chosen ? ' on' : ''}">
+  const on = c => stCKey(c) === P.chosen, pick = (c, cls = '') => `<button class="btn${cls}" data-act="cpick" data-id="${escH(stCKey(c))}">${on(c) ? '고름 ✓' : c.built ? '이 안으로 설계' : '이 안 고르기'}</button>`;
+  const card = (c, i) => `<div class="stCard${on(c) ? ' on' : ''}">
     <div class="row" style="align-items:center"><span class="pill">${i + 1}</span><b style="flex:1">${c.id ? c.id + '안 · ' : ''}${escH(c.ko)}</b>${c.built ? stB('calc') : stB('none')}</div>
     <ul class="why">${c.sols.map(([f, x]) => `<li>${escH(f)}: <b>${escH(x)}</b></li>`).join('')}</ul>
     ${c.pros.length ? `<p class="hint">좋은 점: ${c.pros.map(escH).join(', ')}</p>` : ''}${c.cons.length ? `<p class="hint">아쉬운 점: ${c.cons.map(escH).join(', ')}</p>` : ''}
-    ${c.built ? `<div class="row"><button class="btn primary" data-act="cpick" data-id="${c.id}">이 안으로 설계</button></div>` : `<p class="hint">${stB('none')} 이 안은 비교까지만 됩니다. 치수 역산·3D·껍데기는 아직 B안만 만들었어요.</p>`}</div>`;
+    ${c.built ? '' : `<p class="hint">${stB('none')} 고를 수는 있지만 치수 역산·3D·껍데기는 아직 B안만 만들었어요.</p>`}<div class="row">${pick(c, c.built ? ' primary' : '')}</div></div>`;
   return `<fieldset><legend>기능 분해 ${stB('calc')}</legend><p class="hint">“비누방울”은 아래 기능으로 나눠집니다. 조건이 붙은 기능은 고른 해법에 따라 들어가거나 빠집니다.</p>
     <div class="tblWrap"><table class="vt"><thead><tr><th>기능</th><th>받는 것 → 내놓는 것</th><th>언제</th></tr></thead><tbody>${flow}</tbody></table></div>
     ${Dc.gaps.length ? `<p class="hint" style="color:var(--bad)">${Dc.gaps.map(escH).join(' / ')}</p>` : ''}</fieldset>
   <fieldset><legend>개념안 비교</legend><p class="hint">해법 조합 ${K.combos}개를 만들어 맞지 않는 것을 걸렀어요.${pw ? '' : ' 동력을 정하지 않아 손힘형과 모터형을 모두 보여 줍니다.'}</p>
-    <div class="tblWrap"><table class="vt"><thead><tr><th>개념안</th><th>부품 수</th><th>구입 부품</th><th>점수</th><th>설계·3D</th></tr></thead><tbody>
-    ${K.list.map(c => `<tr${c.id && c.id === P.chosen ? ' class="sel"' : ''}><td>${c.id ? c.id + '안 ' : ''}${escH(c.ko)}</td><td>${c.parts}</td><td class="hint">${c.buy.map(escH).join(', ') || '없음'}</td><td>${fmt(c.score, 2)}</td><td>${c.built ? stB('calc') : stB('none')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="tblWrap"><table class="vt"><thead><tr><th>개념안</th><th>부품 수</th><th>구입 부품</th><th>점수</th><th>설계·3D</th><th></th></tr></thead><tbody>
+    ${K.list.map(c => `<tr${on(c) ? ' class="sel"' : ''}><td>${c.id ? c.id + '안 ' : ''}${escH(c.ko)}</td><td>${c.parts}</td><td class="hint">${c.buy.map(escH).join(', ') || '없음'}</td><td>${fmt(c.score, 2)}</td><td>${c.built ? stB('calc') : stB('none')}</td><td>${pick(c)}</td></tr>`).join('')}</tbody></table></div>
     <p class="hint">점수는 규칙으로 매깁니다: 확실성(연속 회전·팬이 높음) + 부품이 적을수록. 실험으로 얻은 값이 아닙니다.</p></fieldset>
   ${K.list.map(card).join('')}
   ${K.rejected.length ? `<details><summary>빠진 개념안 ${K.rejected.length}개</summary>${K.rejected.map(c => `<p class="hint">· ${c.id}안 ${escH(c.ko)}: ${escH(c.why.join(', '))}</p>`).join('')}</details>` : ''}`;
@@ -172,6 +182,7 @@ $('stBody').addEventListener('click', e => {
   else if (a === 'rqProd' && P.req) { P.req.kind = 'product'; stSave(); stRender(); }
   else if (a === 'rqMotion' && P.req) { P.req.kind = 'motion'; stReqApply(); stStep = 1; stSave(); stRender(); }
   else if (a === 'cpick' && b.dataset.id === 'B') { stUseBubble(); stLog('개념안 선택: B안'); stStep = 3; stSave(); stRender(); }
+  else if (a === 'cpick' && b.dataset.id) { P.chosen = b.dataset.id; P.design = null; const c = stChosenC(); stLog('개념안 선택: ' + (c ? (c.id ? c.id + '안 ' : '') + c.ko : P.chosen)); toast('골랐어요. 이 안은 아직 3D 설계가 없어 비교 정보만 이어집니다'); stSave(); stRender(); }
   else if (a === 'ptest') { P.tests = (P.tests || []).concat([{ at: new Date().toISOString(), result: b.dataset.v, ringD: P.design.ringD, wheelRpm: P.design.wheelRpm }]); stSave(); stRender(); }
   else if (a === 'zip' && P.design && P.design.kind === 'bubble') $('xHousing').checked = true;
 }, true);
