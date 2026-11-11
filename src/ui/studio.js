@@ -6,8 +6,9 @@ const ST_KEY = 'm2m.projects', stLS = { get(k, d) { try { const v = localStorage
 let P = null, stStep = 0, stExpert = false, stRec = null, stRecKey = '', stAI = null, stBusy = false;
 const stAIP = (async () => { try { return window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch { return null; } })();
 stAIP.then(s => { stAI = s; if (stStep === 1) stRender(); });
-const ST_EX = [['상자 밀어내기', '컨베이어 위 상자를 3초마다 옆으로 40mm 밀어내고 싶어'], ['와이퍼', '와이퍼처럼 80도를 2초에 한 번 흔들고 싶어'], ['회전 작업대', '회전 작업대를 6칸으로 나눠 한 칸씩 돌다 멈추게, 한 칸에 2초'], ['작은 승강기', '500g 물건을 150mm 들어 올리기']];
-function stNew(name, text = '') { return { schema: 'm2m.project/1', id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || '새 프로젝트', updated: new Date().toISOString(), spec: text ? m2mParse(text) : m2mSpec(''), chosen: null, design: null, step: 1, history: [] }; }
+const ST_EX = [['비누방울 총', '총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함'], ['상자 밀어내기', '컨베이어 위 상자를 3초마다 옆으로 40mm 밀어내고 싶어'], ['와이퍼', '와이퍼처럼 80도를 2초에 한 번 흔들고 싶어'], ['회전 작업대', '회전 작업대를 6칸으로 나눠 한 칸씩 돌다 멈추게, 한 칸에 2초'], ['작은 승강기', '500g 물건을 150mm 들어 올리기']];
+function stReqOf(t) { const R = m2mRequest(t); if (R.kind !== 'product') return null; delete R.spec; return R; }
+function stNew(name, text = '') { return { schema: 'm2m.project/1', id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || '새 프로젝트', updated: new Date().toISOString(), spec: text ? m2mParse(text) : m2mSpec(''), req: text ? stReqOf(text) : null, chosen: null, design: null, step: 1, history: [] }; }
 function stSave() { if (!P) return; P.updated = new Date().toISOString(); P.step = stStep; stLS.set('m2m.p.' + P.id, P);
   const L = stLS.get(ST_KEY, []).filter(x => x.id !== P.id); L.unshift({ id: P.id, name: P.name, updated: P.updated, motion: P.spec.motion.value, chosen: P.chosen, step: stStep }); stLS.set(ST_KEY, L.slice(0, 50)); }
 function stOpen(Q) { P = Q; stRec = null; stRecKey = ''; stStep = Math.max(1, Math.min(5, Q.step || 1)); if (P.design) { try { setDesign(JSON.parse(JSON.stringify(P.design))); } catch { } } stSave(); stRender(); }
@@ -16,20 +17,22 @@ const stBadge = (k, t) => `<span class="bdg b-${k}">${t}</span>`;
 const ST_STATE = { ok: ['ok', '검사 통과'], bad: ['bad', '미달'], calc: ['calc', '계산됨'], assume: ['assume', '가정값'], unv: ['mute', '미검증'], none: ['mute', '미구현'], ai: ['ai', 'AI 추정'], user: ['user', '내가 줌'] };
 const stB = s => stBadge(...ST_STATE[s]);
 const srcB = src => src === 'user' ? stB('user') : src === 'ai' ? stB('ai') : src === 'calc' ? stB('calc') : src === 'default' ? stB('assume') : stBadge('mute', '비어 있음');
-function stCan(i) { if (i <= 1) return true; if (!P) return false; if (i === 2) return !!P.spec.motion.value; return !!P.design; }
+function stCan(i) { if (i <= 1) return true; if (!P) return false; if (i === 2) return stIsProd() || !!P.spec.motion.value; return !!P.design; }
 function stGo(i) { if (!stCan(i)) return; stStep = i; stSave(); stRender();
-  if (i === 2 && !P.chosen) { const c = stRecRun().list[0]; if (c) setDesign(JSON.parse(JSON.stringify(c.design))); } }   // 추천에 들어가면 1순위를 3D로 먼저 보여 줌
+  if (i === 2 && !P.chosen && stIsProd()) setDesign(bubbleDesign());   // 개념안: 3D·치수까지 만든 B안을 미리 보여 줌
+  if (i === 2 && !P.chosen && !stIsProd()) { const c = stRecRun().list[0]; if (c) setDesign(JSON.parse(JSON.stringify(c.design))); } }   // 추천에 들어가면 1순위를 3D로 먼저 보여 줌
 function stTraitKeys(S) { const need = (M2M_NEED[S.motion.value] || []).map(x => x[0]); return [...new Set(need.concat(Object.keys(S.traits)))]; }
 function stRender() {
-  $('stSteps').innerHTML = ST_STEPS.map((t, i) => `<button data-st="${i}" aria-current="${i === stStep ? 'step' : 'false'}"${stCan(i) ? '' : ' disabled'}><b>${i + 1}</b>${t}</button>`).join('');
+  $('stSteps').innerHTML = (stIsProd() ? ST_PSTEPS : ST_STEPS).map((t, i) => `<button data-st="${i}" aria-current="${i === stStep ? 'step' : 'false'}"${stCan(i) ? '' : ' disabled'}><b>${i + 1}</b>${t}</button>`).join('');
   $('stExpert').checked = stExpert;
-  const H = [stHome, stDefine, stRecommend, stDesign, stSim, stMake][stStep];
+  const H = (stIsProd() ? [stHome, stDefine, stConcepts, stPDesign, stPSim, stPMake] : [stHome, stDefine, stRecommend, stDesign, stSim, stMake])[stStep];
   try { $('stBody').innerHTML = H(); } catch (e) { $('stBody').innerHTML = `<p class="hint">이 단계를 그리지 못했습니다: ${escH(e && e.message || e)}</p>`; }
   $('stNext').textContent = stNextHint();
 }
 function stNextHint() {
   if (stStep === 0) return '다음: 새 프로젝트를 만들거나 예제를 고르세요.';
   if (!P) return '';
+  if (stIsProd()) return stPHint();
   if (stStep === 1) { const q = m2mQuestions(P.spec); return !P.spec.motion.value ? '다음: 원하는 움직임을 글로 쓰거나 아래 그림 카드에서 고르세요.' : q.length ? `다음: 빠진 값 ${q.length}개를 채우면 더 정확해집니다. 비워 두면 기본값(가정값)으로 계산합니다.` : '다음: “기구 추천 보기”를 누르세요.'; }
   if (stStep === 2) return P.chosen ? '다음: 고른 기구의 치수를 다듬거나 바로 시뮬레이션으로 가세요.' : '다음: 후보를 눌러 3D로 보고, 마음에 드는 것을 “이걸로 설계”하세요.';
   if (stStep === 3) return '다음: 값을 바꾸면 기구 치수가 다시 계산됩니다. 끝나면 시뮬레이션에서 요구치와 비교하세요.';
@@ -59,7 +62,7 @@ function stReqCard(R) {
   return `<fieldset><legend>제품 요청서</legend><p class="hint">이 문장은 움직임 하나가 아니라 <b>제품 하나</b>를 말하고 있어요. 괄호 안 치수는 흔히 쓰는 값으로 넣은 가정값이에요.</p>
     <div class="tblWrap"><table class="vt"><thead><tr><th>칸</th><th>읽은 값</th><th>출처</th></tr></thead><tbody>${rows.map(([a, b, c]) => `<tr><td>${a}</td><td>${b}</td><td>${srcB(c)}${/u">/.test(b) ? ' ' + stB('assume') : ''}</td></tr>`).join('')}</tbody></table></div>
     ${q.length ? `<div class="ask">${q.map(x => `<p><b>${escH(x.ask)}</b>${x.choices ? ' ' + x.choices.map(([v, l]) => `<button class="btn" data-act="pw" data-v="${v}">${l}</button>`).join(' ') : ''}</p>`).join('')}</div>` : ''}
-    <p class="hint">다음 단계인 <b>기능 분해</b>(예: 막 적시기 · 막 옮기기 · 바람 만들기)와 <b>개념안 비교</b>, <b>총 모양 껍데기</b>는 아직 만들고 있어요 ${stB('none')}. 지금은 아래에서 이 제품 안의 움직임을 하나씩 설계할 수 있어요.</p></fieldset>`;
+    ${m2mDecompose(R).ok ? `<div class="row"><button class="btn primary" data-go="2">기능 분해와 개념안 보기</button></div>` : `<p class="hint">이 효과는 아직 <b>기능 분해</b> 템플릿이 없어요 ${stB('none')}. 지금은 아래에서 이 제품 안의 움직임을 하나씩 설계할 수 있어요.</p>`}</fieldset>`;
 }
 // 2. 동작 정의
 function stDefine() {
@@ -72,7 +75,7 @@ function stDefine() {
     <p class="hint">${stAI ? '“글 해석하기”는 낱말과 숫자만 읽습니다. “AI로 해석하기”는 문장의 뜻까지 읽지만, 결과는 AI 추정으로 표시되니 확인하세요.' : '낱말과 숫자·단위를 읽어 명세서를 만듭니다. (이 화면에서는 AI 해석을 쓸 수 없습니다)'}</p>
   </fieldset>
   ${P.req ? stReqCard(P.req) : ''}
-  <fieldset><legend>${P.req ? '제품 안의 움직임 하나 고르기' : '움직임의 종류'}</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
+  ${stIsProd() ? '<details><summary>움직임 하나만 따로 설계하기</summary>' : ''}<fieldset><legend>${P.req ? '제품 안의 움직임 하나 고르기' : '움직임의 종류'}</legend><div class="moGrid">${Object.entries(M2M_MOTIONS).map(([k, v]) => `<button class="moCard" data-mo="${k}" aria-pressed="${k === mo}">${M2M_ICON[k] || ''}<b>${v.ko}</b><small>${v.hint}</small></button>`).join('')}</div>
     ${mo ? `<p class="hint">고른 것: <b>${M2M_MOTIONS[mo].ko}</b> ${srcB(S.motion.source)}</p>` : ''}</fieldset>
   ${q.length && mo ? `<fieldset class="ask"><legend>빠진 값 ${q.length}개</legend>${q.map(x => `<label class="f">${escH(x.ask)} <span class="u">${escH(x.unit || '')}</span><input type="number" step="any" data-tr="${x.key}" placeholder="비우면 ${M2M_DEF[x.key]} (가정값)"></label>`).join('')}</fieldset>` : ''}
   ${mo ? `<fieldset><legend>요구사항 명세서</legend>
@@ -80,7 +83,7 @@ function stDefine() {
     <div class="grid2" style="margin-top:8px"><label class="f">목적<select id="stPur">${asmOpts(Object.entries(M2M_PURPOSES), S.purpose.value)}</select></label>
       <label class="f">들어갈 공간 <span class="u">가로×세로×높이 mm</span><input id="stBox" placeholder="예: 200x150x120" value="${S.limits.box_mm ? S.limits.box_mm.filter(v => v).join('x') : ''}"></label></div>
     ${stExpert ? `<details><summary>명세서 JSON</summary><pre class="json">${escH(JSON.stringify(S, null, 1))}</pre></details>` : ''}
-    <div class="row" style="margin-top:8px"><button class="btn primary" data-act="toRec">기구 추천 보기</button></div></fieldset>` : ''}`;
+    <div class="row" style="margin-top:8px"><button class="btn primary" data-act="toRec">기구 추천 보기</button></div></fieldset>` : ''}${stIsProd() ? '</details>' : ''}`;
 }
 const M2M_ICON = {
   rotate: '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><path d="M31 20l-3-4m3 4l3-4"/></svg>', intermittent: '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><path d="M20 9v6M31 20h-6M20 31v-6M9 20h6"/></svg>',

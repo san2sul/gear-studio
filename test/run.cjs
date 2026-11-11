@@ -141,4 +141,22 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(C.m2mRequestQuestions(B).some(q => q.key === 'power'), '요청서: 동력을 모르면 물어야 함');
   const RB = C.m2mRecommend(B.spec); ok(RB.blocked === 'motion' && RB.list.length === 0, '요청서: 움직임을 모르는데 추천함');
   ok(C.m2mRequestQuestions(C.m2mRequest(P[4][0])).length === 0, '요청서: 움직임 하나 문장에 제품 질문을 함'); }
+{ // 13. 비누방울 총 (G2~G6): 기능 분해, 개념안 걸러내기, B안 역산·검사·껍데기·출력 크기
+  const R = C.m2mRequest('총모양의 형상. 방아쇠를 당기면 총 입구에서 비누방울이 만들어져 나가야 함'), Dc = C.m2mDecompose(R);
+  ok(Dc.ok && !Dc.gaps.length && ['wet_film', 'move_film', 'make_air', 'store_liquid'].every(f => Dc.funcs.some(x => x.id === f)), '비누방울: 기능 분해');
+  R.power = { value: 'battery', source: 'user' }; let K = C.m2mConcepts(R);
+  ok(K.list[0] && K.list[0].id === 'B' && K.list[0].built === 'bubbleB', `비누방울: 건전지 가능이면 1순위 B (${K.list[0] && K.list[0].id})`);
+  ok(['A', 'B', 'C'].every(id => K.list.some(c => c.id === id)), '비누방울: A·B·C가 모두 나와야 함');
+  R.power = { value: 'hand', source: 'user' }; K = C.m2mConcepts(R);
+  ok(K.list.every(c => !c.motor) && K.rejected.some(c => c.id === 'B'), '비누방울: 손힘만이면 모터 안 탈락');
+  for (const p of [{}, { ringD: 30 }, { rings: 8, ringD: 20 }, { wheelRpm: 60 }]) {
+    const D = C.bubbleDesign(p), M = C.buildModel(D), tag = JSON.stringify(p);
+    ok(M.verify.every(r => r.ok !== false), `비누방울 ${tag}: 검증 미달 ${M.verify.filter(r => r.ok === false).map(r => r.key)}`);
+    ok(!M.checks.some(c => c.st === 'bad'), `비누방울 ${tag}: 검사 ${M.checks.filter(c => c.st === 'bad').map(c => c.txt)}`);
+    const w = M.verify.find(r => r.key === 'wheel_rpm'); ok(Math.abs(w.got - D.wheelRpm) / D.wheelRpm <= 0.05, `비누방울 ${tag}: 회전수 ${w.got}`);
+    ok(M.housing.length === 4 && M.parts.filter(q => !q.noExport).length === 6, `비누방울 ${tag}: 부품 수`);
+    // 출력 부품·껍데기가 출력판(220×220×250)에 들어가는지 (출력 방향 기준)
+    const big = M.parts.filter(q => !q.noExport).concat(M.housing).filter(q => { const t = q.print ? C.xfTris(q.tris, q.print) : q.tris, b = C.trisBounds(t), d = [0, 1, 2].map(a => b.hi[a] - b.lo[a]); return d[0] > 220 || d[1] > 220 || d[2] > 250; });
+    ok(!big.length, `비누방울 ${tag}: 출력판보다 큰 부품 ${big.map(q => q.name)}`); }
+  const D30 = C.bubbleDesign({ ringD: 30 }), D25 = C.bubbleDesign({}); ok(D30.R > D25.R, '비누방울: 링을 키우면 바퀴 반지름이 커져야 함'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

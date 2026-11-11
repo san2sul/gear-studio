@@ -31,6 +31,7 @@
     "src/mechanisms/linkage-new.js",
     "src/studio/core.js",
     "src/studio/product.js",
+    "src/products/bubble.js",
     "src/mechanisms/train.js",
     "src/ui/between.html",
     "src/ui/app.js",
@@ -45,6 +46,7 @@
     "src/ui/assembly.js",
     "src/ui/fit.js",
     "src/ui/studio.js",
+    "src/ui/studio-product.js",
     "src/ui/shape-editor.js"
   ]
 }

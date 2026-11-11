@@ -233,6 +233,7 @@ function buildModel0(D) {
   if (D.kind === 'asm') return asmModel(D);
   if (D.kind === 'cycloid') return cycloidModel(D);
   if (D.kind === 'worm') return wormModel(D);
+  if (D.kind === 'bubble') return bubbleModel(D);
   return spurModel(D);
 }
 const rpmOf = w => Math.abs(w) * 60 / 2 / PI;

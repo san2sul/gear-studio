@@ -11,6 +11,7 @@ async function saveFile(name, data) {
 }
 function baseName() {
   const sb = design.box && shapeOf(design.box), bx = !design.box ? '' : sb === 'cyl' ? `_cyl${design.box.W}x${design.box.D}` : sb === 'poly' ? `_shape${design.box.pts.length}_h${design.box.D}` : `_${design.box.W}x${design.box.H}x${design.box.D}`;
+  if (design.kind === 'bubble') return `bubble_gun_B_ring${design.rings}x${design.ringD}_z${design.z2}-${design.z1}`;
   if (design.kind === 'asm') return `assembly_${design.mods.length}mods_${design.mods.map(m => m.design.type || m.design.kind).join('-')}`;
   if (design.kind === 'bevel') return `bevel_m${design.m}_z${design.z1}-${design.z2}${bx}`;
   if (design.kind === 'linkage') return design.type === 'slider' ? `slider_crank_r${design.slider.r}_L${design.slider.L}` : `fourbar_${design.fourbar.a}_${design.fourbar.b}_${design.fourbar.c}_${design.fourbar.d}`;
