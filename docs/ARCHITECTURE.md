@@ -117,3 +117,12 @@ assembly = {
 - AI 보강 제안(`stSuggest`): 빠진 것·맞지 않는 값·출력/조립/안전 문제를 `P.sugg[{kind:'value'|'part'|'note',...,state}]`로 받음. `stSuggClean`이 모르는 칸·범위 밖·중복을 버림. 사람이 '받아들이기'를 눌러야 반영. note는 `R.notes`(설계 계산에 안 쓰임, 미검증 표시).
 - AI가 없으면 그림은 첨부 자료로만 남음. `stRender` 끝에서 `skDraw()`로 캔버스를 다시 그림.
 - 시험: `test/ui-media.cjs`(스케치 선 그리기·기준선 필수·올리기·AI 흉내 해석·제안 정리·받아들이기/아니요·B안 설계 반영).
+
+## v34 전문 도구 동력원 연결 (공통 모듈)
+- 대상: 동력원이 없던 기구 — 캠, 기어 직접 설계(평기어·베벨·유성·랙·웜·사이클로이드), 자유 조립. (기어박스 자동 설계·동작 기구·조립 작업대는 기존 `drive.js` 방식 유지)
+- `src/core/power.js` (코어, `train.js` 앞에 둠 — train.js가 코어 스크립트를 닫음): `PW_KINDS`, `PW`(탭별 설정), `pwOf(D)`(= `D.power` 또는 `PW[그룹]`), `pwLoad`(입력축 토크: 캠 = 힘 × 최대 ds/dθ × 마찰 1.3, 랙 = 힘 × 피치원 반지름, 그 밖 = 출력 토크 ÷ (변속비 × 효율), `model.io`), `pwOptions`(후보 등급), `pwAttach`.
+- `pwAttach`: `model.rods`의 입력축에서 바깥쪽 끝을 골라(모터 좌표: z = 축, 앞면 z=0) 축 커플링(회전), 모터 브래킷(아래·위: 판+다리 4, 옆: 세운 판+발), 받침 다리 4개(기구를 올림), 입력축 받침(옆 방향, 규격 베어링 자리), 공통 바탕판을 `model.parts`에 `power_*` 파일로 추가. 모터 몸통은 `model.extras`(출력 안 함). 손 크랭크·핸드휠·플랜지는 축 끝 부품만. `model.kit`·`model.bom`·`model.steps`·검사·HUD 추가, `model.power`에 결과.
+- `buildModel`에서 `!opt.sub && pwOf(D)`일 때 호출. `train.js`·`worm.js`·`cycloid.js`는 `model.io = {r, eta}`를 냄.
+- 화면: `src/ui/power.js` + `#panePower`(캠·기어 직접 설계·자유 조립 탭 아래). 설정은 localStorage `gearStudio.power`.
+- 시험: run.cjs 18절, `test/ui-power.cjs`(각 종류 켜기, 약한 모터 미달, 손 크랭크, ZIP 내용).
+- 한계: 직결만(감속·벨트 없음), 커플링 멈춤나사 구멍 없음, 바닥판 없는 기구는 출력축 받침을 만들지 않음.

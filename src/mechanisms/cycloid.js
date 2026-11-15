@@ -66,6 +66,7 @@ function cycloidModel(D) {
   model.rods.push({ a: [0, 0, -baseT - 12], b: [0, 0, z0 + T], d: sd, role: 'input' }, { a: [0, 0, zOut], b: [0, 0, zOut + outT + 18], d: sd, role: 'output' });
   // 검사
   const c = model.checks, ratio = N - 1;
+  model.io = { r: ratio, eta: 0.85 };
   c.push({ st: 'ok', txt: `변속비 <em>${ratio} : 1</em> · 출력 <em>${fmt(D.rpm / ratio, 2)} rpm</em> · 출력은 입력과 <em>${S.sg > 0 ? '같은' : '반대'}</em> 방향 · 원판 로브 ${N - 1}개` });
   const eLim = D.R / N;
   if (D.e >= eLim) c.push({ st: 'bad', txt: `편심량 ${D.e} mm가 R/N(${fmt(eLim, 2)} mm) 이상이라 원판 윤곽이 뾰족해지거나 꼬입니다. 편심을 줄이세요.` });

@@ -209,4 +209,19 @@ for (const [a, z] of [['slider', 16], ['yoke', 12], ['screw', 12]]) {
   ok(E2.rows.find(x => x.key === 'wheel_pred').ok && D2.motRpmSrc === 'calc' && !M2.checks.some(c => c.st === 'bad'), `계산: 계산값으로 잇수를 다시 정하면 목표 회전수 (z${D2.z2}, ${E2.rows.find(x => x.key === 'wheel_pred').value})`);
   ok(!C.bubbleEngCalc(D, M, { trigForceMax: 3 }).rows.find(x => x.key === 'trig_pull').ok, '계산: 당기는 힘 기준을 낮추면 미달');
   const Rd = C.bubbleReadiness(D2, M2, null, [], E2); ok(Rd.rows.filter(x => x.gate === 3).every(x => x.state === 'ok'), '계산: 준비도 관문 3 통과'); }
+// 18. 동력원 연결 (공통 모듈)
+{ const cam = C.camDefault(), m0 = C.buildModel(cam); ok(!m0.power && !m0.parts.some(p => /^power_/.test(p.file)), '동력원: 꺼져 있으면 아무것도 붙지 않음');
+  cam.power = { on: true, motor: 'auto', F: 5 }; const m = C.buildModel(cam), W = m.power;
+  ok(W && W.dir === 'down' && W.sel.st !== 'bad' && W.sel.M.kind !== 'hand', `동력원: 캠 자동 추천 (${W.sel.id}, 여유 ${W.sel.margin.toFixed(2)})`);
+  ok(Math.abs(W.load.T - 5 * Math.max(...m.camMotion.s1.map(Math.abs)) * 1.3) < 1e-6, '동력원: 캠 부하 = 힘 × 최대 기울기 × 마찰');
+  ok(['축 커플링', '모터 브래킷', '받침 다리 4개', '공통 바탕판'].every(n => m.parts.some(p => p.name === n)) && m.kit && m.bom.length >= 6, '동력원: 커플링·브래킷·받침 다리·바탕판·부품표·배선');
+  ok(m.parts.every(p => p.tris.every(t => t.every(isFinite))), '동력원: 부품 좌표가 모두 유한');
+  const lo = Math.min(...m.parts.filter(p => p.name !== '공통 바탕판').map(p => { let z = Infinity; for (const t of p.tris) { const q = p.motion(0); for (let k = 0; k < 9; k += 3) z = Math.min(z, q[8] * t[k] + q[9] * t[k + 1] + q[10] * t[k + 2] + q[11]); } return z; }));
+  const board = m.parts.find(p => p.name === '공통 바탕판'); let top = -Infinity; for (const t of board.tris) for (let k = 2; k < 9; k += 3) top = Math.max(top, t[k]);
+  ok(lo >= top - 0.05, `동력원: 어떤 부품도 바탕판 밑으로 내려가지 않음 (${lo.toFixed(2)} ≥ ${top.toFixed(2)})`);
+  cam.power = { on: true, motor: 'n20_300', F: 40 }; ok(C.buildModel(cam).checks[0].st === 'bad', '동력원: 약한 모터는 미달로 표시');
+  cam.power = { on: true, motor: 'crank', F: 5 }; const mc = C.buildModel(cam); ok(mc.parts.some(p => p.name === '손 크랭크') && !mc.parts.some(p => p.name === '모터 브래킷'), '동력원: 손 크랭크는 브래킷 없이 축 끝에');
+  const tr = C.defaultTrain(); tr.power = { on: true, motor: 'auto', T: 10 }; const mt = C.buildModel(tr);
+  ok(mt.power && Math.abs(mt.power.load.T - 100 / (mt.io.r * mt.io.eta)) < 1e-6, '동력원: 자유 조립 부하 = 출력 토크 ÷ (변속비 × 효율)');
+  const o = C.pwOptions({ T: 50, rpm: 30 }); ok(o[0].st === 'ok' && o.every((e, i) => !i || ({ ok: 0, warn: 1, bad: 2 })[o[i - 1].st] <= ({ ok: 0, warn: 1, bad: 2 })[e.st]), '동력원: 후보는 적합 순으로 정렬'); }
 console.log(fail ? `${fail}개 실패` : '모두 통과'); process.exit(fail ? 1 : 0);

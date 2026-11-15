@@ -510,6 +510,7 @@ function trainModel(D) {
     head: ['기어', '종류', '축', 'z', 'm', 'α', '피치원 d', '이끝원', '폭', '층 위치 s', '구멍', 'rpm'],
     rows: gears.map(g => { const s = shafts[g.shaft]; return { part: s.part, cells: [g.name, g.type === 'bevel' ? `베벨 δ${fmt(g.delta / D2R, 1)}°` : g.internal ? '내접(링)' + (g.helix ? ' ' + gearKindKo(g) : '') : gearKindKo(g), `S${g.shaft} ${AXIS_KO[s.axis]}`, g.z, g.m, g.pa + '°', fmt(gearOutlineInfo(g).r * 2, 2), fmt(2 * gearTipR(g), 2), fmt(g.type === 'bevel' ? g.F : g.b, 2), `${fmt(g.span[0], 1)}~${fmt(g.span[1], 1)}`, fmt(g.boreD, 2) + (g.dcut ? ' D' : ''), fmt(rpmOf(w[g.shaft]), 1)] }; })
   };
+  { const oi = shafts.findIndex(s => s.role === 'output'); if (oi > 0 && w[oi]) { let eta = 1; try { trainPath(D, oi).forEach(k => eta *= D.stages[k].type === 'bevel' ? 0.95 : 0.98); } catch { eta = 0.9; } model.io = { r: Math.abs(w[0] / w[oi]), eta, out: 'S' + oi }; } }
   model.hud = [['입력 S0', fmt(D.rpm, 1) + ' rpm' + (D.reverse ? ' (거꾸로)' : '')]];
   shafts.forEach((s, i) => s.role === 'output' && model.hud.push([`출력 S${i}`, fmt(rpmOf(w[i]), 2) + ' rpm']));
   model.hud.push(['단 수', D.stages.length], ['기어', gears.length + '개']);

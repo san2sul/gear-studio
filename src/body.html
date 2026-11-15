@@ -533,6 +533,22 @@
         </details>
       </fieldset>
     </section>
+    <section id="panePower" style="display:none;flex-direction:column;gap:14px">
+      <fieldset>
+        <legend>동력원 연결 (선택)</legend>
+        <label class="chk"><input type="checkbox" id="pwOn"> 입력축에 동력원을 연결해 함께 설계하기</label>
+        <div id="pwWrap" hidden>
+          <div class="grid2">
+            <label class="f">동력원<select id="pwMotor"></select></label>
+            <label class="f"><span id="pwLoadL">출력 부하</span> <span class="u" id="pwLoadU">N·cm</span><input type="number" id="pwLoad" min="0" step="0.5"></label>
+            <label class="f">연결할 축 끝<select id="pwEnd"><option value="auto">자동 (바깥쪽 끝)</option><option value="a">한쪽 끝</option><option value="b">반대쪽 끝</option></select></label>
+          </div>
+          <div id="pwRec" class="alts" style="margin-top:8px"></div>
+          <p class="hint" id="pwHint"></p>
+        </div>
+        <p class="hint">동력원을 고르면 입력축에 걸리는 부하를 계산해 맞는 모터를 추천하고, 축 커플링, 모터 브래킷, 받침 다리, 공통 바탕판, 입력축 받침(옆 방향 축)을 함께 만듭니다. 손 크랭크·핸드휠·태엽은 축 끝에 끼우는 부품을 만듭니다. 부품표, 배선표, 아두이노 코드, 조립 순서가 ZIP에 들어갑니다. 마찰과 효율은 가정값이니 실제로 돌려 확인하세요.</p>
+      </fieldset>
+    </section>
 
     <div class="export">
       <legend style="font:600 11px var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">내보내기</legend>

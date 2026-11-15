@@ -85,6 +85,7 @@ function wormModel(D) {
   model.rods.push({ a: [-D.Lw / 2 - 6, -W.a, 0], b: [D.Lw / 2 + 12, -W.a, 0], d: D.bore1 > 0 ? D.bore1 : 3, role: 'input' });
   model.rods.push({ a: [0, 0, -D.b2 / 2 - 6], b: [0, 0, D.b2 / 2 + 12], d: D.bore2 > 0 ? D.bore2 : 3, role: 'output' });
   const checks = [], ratio = D.z2 / D.n, gdeg = W.gam / D2R;
+  model.io = { r: ratio, eta: Math.max(0.2, Math.tan(W.gam) / Math.tan(W.gam + Math.atan(0.15))) };
   checks.push({ st: 'ok', txt: `변속비 <em>${ratioTxt(ratio)}</em> · 출력 <em>${fmt(rpmOf(w2), 2)} rpm</em> · 중심거리 <em>${fmt(W.a, 3)} mm</em> · 리드각 <em>${fmt(gdeg, 2)}°</em>` });
   checks.push(gdeg < 6 ? { st: 'ok', txt: `리드각이 ${fmt(gdeg, 1)}°로 작아 휠 쪽에서 웜을 돌리기 어렵습니다 (자동 잠김). 하중을 붙잡아 두는 용도에 좋습니다.` }
     : { st: 'warn', txt: `리드각 ${fmt(gdeg, 1)}°: 휠 쪽에서 역으로 돌아갈 수 있습니다. 붙잡아 두려면 줄 수를 줄이거나 직경계수 q를 키우세요.` });

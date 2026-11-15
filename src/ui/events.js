@@ -11,5 +11,6 @@ function selectTab(t) {
   const easy = t === 'studio'; $('modeExpert').setAttribute('aria-selected', !easy); document.querySelector('.tabs').hidden = easy; if (!easy) stLastTab = t;
   if (easy) stRender();
   if (t === 'fit') fitShow();
+  if (typeof pwRender === 'function') pwRender();
   if (t === 'asm') { renderAsm(); if (!design || design.kind !== 'asm') asmRebuild(0, true); }
 }

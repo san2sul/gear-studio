@@ -3,6 +3,7 @@ function setDesign(D, refit = true) {
   const keepView = !refit && design && design.kind === D.kind && (D.kind === 'train' || D.kind === 'cam' || D.kind === 'linkage' || D.kind === 'asm');
   design = D; model = buildModel(D); simT = 0;
   buildScene(keepView); renderReport(); updateToTrain(); drawShapeEd();
+  if (typeof pwRender === 'function') pwRender();
   if (D.kind === 'train' && $('paneTrain').style.display !== 'none') renderSkip();
 }
 function renderReport(extra = []) {
