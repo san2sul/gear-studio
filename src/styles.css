@@ -178,4 +178,7 @@ pre.json{font:11px var(--f-mono);white-space:pre-wrap;word-break:break-all;max-h
 .sgList li>div{flex:1 1 220px;min-width:0}
 .sgNotes li{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #mdCard,#sgCard{min-width:0}#skCv{max-width:100%;display:block}
+.stage.real{background:radial-gradient(ellipse at 50% 38%,#f3f1ec 0%,#dcd9d2 55%,#b9b6ae 100%)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .stage.real{background:radial-gradient(ellipse at 50% 38%,#5a5d62 0%,#3a3c40 55%,#232427 100%)}}
+:root[data-theme="dark"] .stage.real{background:radial-gradient(ellipse at 50% 38%,#5a5d62 0%,#3a3c40 55%,#232427 100%)}
 </style>

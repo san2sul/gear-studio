@@ -126,3 +126,10 @@ assembly = {
 - 화면: `src/ui/power.js` + `#panePower`(캠·기어 직접 설계·자유 조립 탭 아래). 설정은 localStorage `gearStudio.power`.
 - 시험: run.cjs 18절, `test/ui-power.cjs`(각 종류 켜기, 약한 모터 미달, 손 크랭크, ZIP 내용).
 - 한계: 직결만(감속·벨트 없음), 커플링 멈춤나사 구멍 없음, 바닥판 없는 기구는 출력축 받침을 만들지 않음.
+
+## v35 실물처럼 보기 (3D 화면)
+- `src/ui/realism.js`: `buildScene` 끝에서 `realApply()`. 켜면 sRGB 출력·ACES 톤매핑, PMREM 스튜디오 환경(직접 그린 방), 그림자 주는 주 조명, 그림자 받이 바닥(`ShadowMaterial`, scene에 둠 — root에 넣으면 화면 맞춤 범위가 커짐), 스튜디오 배경(.stage.real).
+- 재질: 부품 = 무광 플라스틱 + 0.4 mm 적층 줄무늬(부품 좌표 z, `onBeforeCompile`), 축 = 금속(입력·출력 색을 조금 남김), extras(모터) = 어두운 금속, 하우징 = 투명 아크릴.
+- `realSmooth`: 꺾임각 38° 안쪽 면의 법선을 넓이 가중 평균(둥근 면 매끈, 모서리는 날카롭게). 삼각형 25만 개 넘으면 건너뜀.
+- `realWatch`: 12프레임 평균이 90 ms를 넘으면 그림자를 끔(`realLite`). 설정은 localStorage `gearStudio.real`, 화면의 "실물처럼 보기" 체크.
+- 보기만 바꾸며 치수·STL은 그대로.

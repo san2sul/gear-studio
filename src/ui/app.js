@@ -94,6 +94,7 @@ function buildScene(keepView) {
   }
   boxGroup.visible = $('showBox').checked;
   if (!keepView) fitView();
+  if (typeof realApply === 'function') realApply();
 }
 // 유성기어 세트는 같은 색 → 표의 색과 일치
 function colorIdx(k) {
